@@ -1,0 +1,803 @@
+// ============================================
+// RD CORPORATION PROPERTY MANAGEMENT SYSTEM
+// ============================================
+// Compatible with Next.js 15.5.4 and NextAuth.js v5 (beta)
+//
+// SYSTEM OVERVIEW:
+// This system manages property titles, their movements, real property taxes,
+// and includes approval workflows with comprehensive audit logging.
+//
+// ============================================
+// PROCESS FLOWS
+// ============================================
+//
+// 1. USER AUTHENTICATION & AUTHORIZATION FLOW
+// -------------------------------------------
+// a) User Registration:
+//    - Create User with hashed password
+//    - Assign Role (which contains multiple Permissions)
+//    - User can login with email/password (credentials provider)
+//
+// b) Login Process:
+//    - User provides email/password
+//    - NextAuth validates credentials
+//    - Session is created and stored in Session table
+//    - User's Role and Permissions are loaded for authorization
+//
+// c) Authorization Check:
+//    - On every protected action, check user's Role
+//    - Verify if Role has required Permission (via RolePermission)
+//    - Permission format: "module.action" (e.g., "property.create", "tax.update")
+//
+// 2. PROPERTY TITLE REGISTRATION FLOW
+// ------------------------------------
+// a) Create New Property:
+//    - User (with "property.create" permission) enters property details
+//    - Property record is created with status ACTIVE
+//    - ChangeHistory record is created (changeType: CREATE)
+//    - AuditLog record is created (action: CREATE)
+//
+// b) Property Update with Approval:
+//    - User initiates property update
+//    - ApprovalWorkflow is created (status: PENDING)
+//    - proposedChanges stored as JSON in workflow
+//    - Approver (with "approval.approve" permission) reviews
+//    - If APPROVED: Property is updated, ChangeHistory records created
+//    - If REJECTED: Workflow marked as REJECTED with reason
+//    - AuditLog tracks all approval actions
+//
+// 3. TITLE MOVEMENT TRACKING FLOW
+// --------------------------------
+// a) Release Title:
+//    - Create TitleMovement with status RELEASED
+//    - Record: dateReleased, releasedBy, purposeOfRelease, approvedBy
+//    - Title is marked as "out" from storage
+//
+// b) Transfer in Transit:
+//    - Update movementStatus to IN_TRANSIT
+//    - Record: receivedByTransmittal (transmittal number)
+//
+// c) Receive Title:
+//    - Update movementStatus to RECEIVED
+//    - Record: turnedOverDate, turnedOverBy, receivedByPerson
+//    - Title is with the recipient
+//
+// d) Return Title:
+//    - Update movementStatus to RETURNED
+//    - Record: dateReturned, returnedBy, receivedByOnReturn
+//    - Title is back in custody
+//
+// e) Each movement action creates:
+//    - ChangeHistory record with old/new status
+//    - AuditLog entry for traceability
+//
+// 4. REAL PROPERTY TAX MANAGEMENT FLOW
+// -------------------------------------
+// a) Tax Assessment Creation:
+//    - Create RealPropertyTax for specific taxYear and taxQuarter
+//    - Set taxAmount (total amount due)
+//    - Set dueDate and status PENDING
+//
+// b) Tax Becomes Due:
+//    - System checks dueDate
+//    - Update status from PENDING to DUE
+//    - Can apply early payment discount if paid before dueDate
+//
+// c) Tax Payment:
+//    - Record amountPaid, paymentDate, officialReceiptNumber
+//    - Set paymentMethod (CASH, CHECK, BANK_TRANSFER, etc.)
+//    - Apply discount if eligible, add penalty if overdue
+//    - Update status to PAID or PARTIALLY_PAID
+//    - Attach receipt via attachmentUrl
+//    - Create AuditLog for payment transaction
+//
+// d) Overdue Tax:
+//    - If not paid by dueDate, status becomes OVERDUE
+//    - Calculate penalty and interest based on days overdue
+//    - Add to taxAmount
+//
+// e) Tax Exemption/Waiver:
+//    - Create ApprovalWorkflow for exemption request
+//    - Upon approval, update status to EXEMPTED or WAIVED
+//
+// 5. APPROVAL WORKFLOW PROCESS
+// -----------------------------
+// a) Initiate Approval:
+//    - User creates ApprovalWorkflow with workflowType
+//    - Types: PROPERTY_UPDATE, TITLE_TRANSFER, STATUS_CHANGE, etc.
+//    - proposedChanges stored as JSON (what will change)
+//    - Status set to PENDING
+//
+// b) Review Process:
+//    - Approver (with "approval.approve" permission) reviews
+//    - Can APPROVE or REJECT with optional reason
+//    - Priority can be set: LOW, NORMAL, HIGH, URGENT
+//
+// c) After Approval:
+//    - If APPROVED: Execute the changes to Property/TitleMovement/Tax
+//    - Create ChangeHistory for each field changed
+//    - If REJECTED: No changes applied, workflow ends
+//    - AuditLog records the approval decision
+//
+// d) Workflow can be CANCELLED by initiator or EXPIRED if too old
+//
+// 6. CHANGE HISTORY & AUDIT LOGGING
+// ----------------------------------
+// a) Change History (Field-Level):
+//    - Tracks every field change in Property
+//    - Records: fieldName, oldValue, newValue, changeType
+//    - Linked to specific user who made the change
+//    - Used for detailed change tracking and rollback capability
+//
+// b) Audit Log (System-Wide):
+//    - Tracks all important system actions
+//    - Records: action, entityType, entityId, userId
+//    - Captures: ipAddress, userAgent for security
+//    - stores complete changes as JSON
+//    - Used for compliance, security audits, and forensics
+//
+// c) Every significant action creates BOTH:
+//    - ChangeHistory (what changed)
+//    - AuditLog (who, when, where, why)
+//
+// 7. DOCUMENT MANAGEMENT FLOW
+// ----------------------------
+// a) Upload Document:
+//    - Attach to specific Property
+//    - documentType: TITLE_DEED, TAX_RECEIPT, TAX_DECLARATION, etc.
+//    - Store fileUrl, fileName, fileSize, mimeType
+//    - AuditLog records the upload
+//
+// b) Document can be marked inactive (soft delete)
+//    - Set isActive = false
+//    - Keeps historical record
+//
+// 8. ROLE & PERMISSION MANAGEMENT
+// --------------------------------
+// a) Create Role:
+//    - Define role name and description
+//    - isSystem = true for default roles (cannot be deleted)
+//
+// b) Assign Permissions:
+//    - Create RolePermission entries
+//    - One role can have many permissions
+//    - One permission can be assigned to many roles
+//
+// c) Permission Naming Convention:
+//    - Format: "module.action"
+//    - Modules: property, tax, approval, user, title_movement, document
+//    - Actions: create, read, update, delete, approve, export, import
+//    - Examples: "property.create", "tax.approve", "user.manage_roles"
+//
+// d) Assign Role to User:
+//    - Set user.roleId to specific role
+//    - User inherits all permissions from that role
+//
+// 9. REPORTING & ANALYTICS QUERIES
+// ---------------------------------
+// a) Property Reports:
+//    - Active properties by classification
+//    - Properties by location (barangay, city, province)
+//    - Properties with pending approvals
+//    - Properties with overdue taxes
+//
+// b) Tax Reports:
+//    - Total tax due by year/quarter
+//    - Collection efficiency (paid vs due)
+//    - Overdue properties list
+//    - Tax payment history by property
+//
+// c) Movement Reports:
+//    - Currently released titles
+//    - Titles not returned (lost tracking)
+//    - Movement history by property
+//
+// d) Audit Reports:
+//    - User activity log
+//    - Changes made by date range
+//    - Approval workflow statistics
+//
+// 10. DATA INTEGRITY & SOFT DELETES
+// ----------------------------------
+// a) Soft Delete Properties:
+//    - Set isDeleted = true, deletedAt = now()
+//    - Property still in database for historical reference
+//    - Can be restored via ApprovalWorkflow (RESTORATION type)
+//
+// b) Cascade Deletes:
+//    - Deleting Property can cascade to related records
+//    - Or use soft delete to preserve relationships
+//
+// c) Unique Constraints:
+//    - titleNumber is unique per property
+//    - email is unique per user
+//    - [propertyId, taxYear, taxQuarter] unique for taxes
+//
+// ============================================
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql" // or "mysql", "sqlserver"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================
+// AUTHENTICATION & USER MANAGEMENT
+// ============================================
+
+model User {
+  id         String   @id @default(uuid())
+  firstName  String
+  lastName   String
+  email      String   @unique
+  image      String?
+  password   String // Hashed password for credentials auth
+  roleId     String
+  department String?
+  position   String?
+  isActive   Boolean  @default(true)
+  createdAt  DateTime @default(now())
+  updatedAt  DateTime @updatedAt
+
+  // Relations
+  role               Role               @relation(fields: [roleId], references: [id])
+  sessions           Session[]
+  propertiesCreated  Property[]         @relation("CreatedBy")
+  propertiesUpdated  Property[]         @relation("UpdatedBy")
+  approvalsMade      ApprovalWorkflow[] @relation("ApprovedBy")
+  approvalsInitiated ApprovalWorkflow[] @relation("InitiatedBy")
+  auditLogs          AuditLog[]
+  titleMovements     TitleMovement[]    @relation("MovedBy")
+  changeHistories    ChangeHistory[]
+  taxPayments        RealPropertyTax[]  @relation("RecordedBy")
+  notifications      Notification[]
+
+  @@index([roleId])
+  @@index([email])
+  @@map("users")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g., "Super Admin", "Property Manager", "Viewer"
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  isSystem    Boolean  @default(false) // System roles cannot be deleted
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  users       User[]
+  permissions RolePermission[]
+
+  @@map("roles")
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  name        String   @unique // e.g., "property.create", "property.update", "approval.approve"
+  module      String // e.g., "property", "user", "approval", "tax"
+  action      String // e.g., "create", "read", "update", "delete", "approve"
+  description String?  @db.Text
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  // Relations
+  roles RolePermission[]
+
+  @@unique([module, action])
+  @@index([module])
+  @@map("permissions")
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  createdAt    DateTime @default(now())
+
+  // Relations
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+
+  @@unique([roleId, permissionId])
+  @@index([roleId])
+  @@index([permissionId])
+  @@map("role_permissions")
+}
+
+model Session {
+  id           String   @id @default(uuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+  user         User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String   @unique
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
+
+// ============================================
+// PROPERTY & TITLE MANAGEMENT
+// ============================================
+
+model Property {
+  id          String  @id @default(uuid())
+  titleNumber String  @unique
+  lotNumber   String
+  lotArea     Decimal @db.Decimal(12, 2) // in square meters
+
+  // Location Details
+  location String? @db.Text
+  barangay String
+  city     String
+  province String
+  zipCode  String?
+
+  // Property Details
+  description    String?                @db.Text
+  classification PropertyClassification
+  status         PropertyStatus         @default(ACTIVE)
+
+  // Owner Information
+  registeredOwner String
+  bank            String?
+  custodyOfTitle  String?
+
+  // Financial Information
+  encumbrance       String? @db.Text
+  mortgageDetails   String? @db.Text
+  borrowerMortgagor String?
+
+  // Tax Information
+  taxDeclaration String?
+  remarks        String? @db.Text
+
+  // Metadata
+  createdAt   DateTime  @default(now())
+  updatedAt   DateTime  @updatedAt
+  createdById String
+  updatedById String?
+  isDeleted   Boolean   @default(false)
+  deletedAt   DateTime?
+
+  // Relations
+  createdBy         User               @relation("CreatedBy", fields: [createdById], references: [id])
+  updatedBy         User?              @relation("UpdatedBy", fields: [updatedById], references: [id])
+  titleMovements    TitleMovement[]
+  approvalWorkflows ApprovalWorkflow[]
+  changeHistories   ChangeHistory[]
+  documents         PropertyDocument[]
+  realPropertyTaxes RealPropertyTax[]
+
+  @@index([titleNumber])
+  @@index([registeredOwner])
+  @@index([classification])
+  @@index([status])
+  @@index([city])
+  @@index([province])
+  @@map("properties")
+}
+
+enum PropertyClassification {
+  COMMERCIAL
+  RESIDENTIAL
+  INDUSTRIAL
+  AGRICULTURAL
+  MIXED_USE
+  INSTITUTIONAL
+}
+
+enum PropertyStatus {
+  ACTIVE
+  COLLATERAL
+  SOLD
+  UNDER_DEVELOPMENT
+  FORECLOSED
+  DISPOSED
+  PENDING_TRANSFER
+  INACTIVE
+}
+
+// ============================================
+// REAL PROPERTY TAX TRACKING
+// ============================================
+
+model RealPropertyTax {
+  id         String @id @default(uuid())
+  propertyId String
+
+  // Tax Period
+  taxYear    Int
+  taxQuarter Int? // 1-4, null for annual
+
+  // Tax Details
+  taxAmount Decimal @db.Decimal(15, 2)
+
+  // Payment Information
+  isPaid                Boolean        @default(false)
+  amountPaid            Decimal?       @db.Decimal(15, 2)
+  paymentDate           DateTime?
+  officialReceiptNumber String?
+  paymentMethod         PaymentMethod?
+
+  // Discount & Penalty
+  discount Decimal? @db.Decimal(15, 2)
+  penalty  Decimal? @db.Decimal(15, 2)
+  interest Decimal? @db.Decimal(15, 2)
+
+  // Due Dates
+  dueDate    DateTime
+  periodFrom DateTime
+  periodTo   DateTime
+
+  // Status
+  status TaxStatus @default(PENDING)
+
+  // Additional Information
+  notes         String? @db.Text
+  attachmentUrl String? @db.Text
+
+  // Metadata
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  recordedById String
+
+  // Relations
+  property   Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  recordedBy User     @relation("RecordedBy", fields: [recordedById], references: [id])
+
+  @@unique([propertyId, taxYear, taxQuarter])
+  @@index([propertyId])
+  @@index([taxYear])
+  @@index([status])
+  @@index([dueDate])
+  @@index([isPaid])
+  @@map("real_property_taxes")
+}
+
+enum TaxStatus {
+  PENDING
+  DUE
+  OVERDUE
+  PAID
+  PARTIALLY_PAID
+  CONTESTED
+  EXEMPTED
+  WAIVED
+}
+
+enum PaymentMethod {
+  CASH
+  CHECK
+  BANK_TRANSFER
+  ONLINE_PAYMENT
+  CREDIT_CARD
+  DEBIT_CARD
+}
+
+// ============================================
+// TITLE MOVEMENT TRACKING
+// ============================================
+
+model TitleMovement {
+  id         String @id @default(uuid())
+  propertyId String
+
+  // Movement Details
+  dateReleased     DateTime?
+  releasedBy       String?
+  purposeOfRelease String?   @db.Text
+  approvedBy       String?
+
+  // Receiving Information
+  receivedByTransmittal String?
+  receivedByName        String?
+  turnedOverDate        DateTime?
+  turnedOverBy          String?
+  receivedByPerson      String?
+
+  // Return Information
+  dateReturned       DateTime?
+  returnedBy         String?
+  receivedByOnReturn String?
+
+  // Status
+  movementStatus MovementStatus @default(RELEASED)
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+  movedById String
+
+  // Relations
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  movedBy  User     @relation("MovedBy", fields: [movedById], references: [id])
+
+  @@index([propertyId])
+  @@index([movementStatus])
+  @@index([dateReleased])
+  @@map("title_movements")
+}
+
+enum MovementStatus {
+  RELEASED
+  IN_TRANSIT
+  RECEIVED
+  RETURNED
+  LOST
+  PENDING_RETURN
+}
+
+// ============================================
+// APPROVAL WORKFLOW
+// ============================================
+
+model ApprovalWorkflow {
+  id         String @id @default(uuid())
+  propertyId String
+
+  // Workflow Details
+  workflowType WorkflowType
+  description  String         @db.Text
+  status       ApprovalStatus @default(PENDING)
+  priority     Priority       @default(NORMAL)
+
+  // Proposed Changes (JSON format)
+  proposedChanges Json // Stores the changes being proposed
+
+  // Approval Information
+  initiatedById  String
+  approvedById   String?
+  approvedAt     DateTime?
+  rejectedReason String?   @db.Text
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  property    Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  initiatedBy User     @relation("InitiatedBy", fields: [initiatedById], references: [id])
+  approvedBy  User?    @relation("ApprovedBy", fields: [approvedById], references: [id])
+
+  @@index([propertyId])
+  @@index([status])
+  @@index([workflowType])
+  @@map("approval_workflows")
+}
+
+enum WorkflowType {
+  PROPERTY_UPDATE
+  TITLE_TRANSFER
+  STATUS_CHANGE
+  OWNER_CHANGE
+  ENCUMBRANCE_UPDATE
+  LOCATION_UPDATE
+  DELETION
+  RESTORATION
+}
+
+enum ApprovalStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  CANCELLED
+  EXPIRED
+}
+
+enum Priority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
+
+// ============================================
+// CHANGE HISTORY & AUDIT LOGS
+// ============================================
+
+model ChangeHistory {
+  id         String @id @default(uuid())
+  propertyId String
+
+  // Change Details
+  fieldName  String // Which field was changed
+  oldValue   String?    @db.Text // Old value (JSON string for complex types)
+  newValue   String?    @db.Text // New value (JSON string for complex types)
+  changeType ChangeType
+
+  // Metadata
+  changedById String
+  changedAt   DateTime @default(now())
+  reason      String?  @db.Text
+
+  // Relations
+  property  Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+  changedBy User     @relation(fields: [changedById], references: [id])
+
+  @@index([propertyId])
+  @@index([changedAt])
+  @@index([fieldName])
+  @@map("change_histories")
+}
+
+enum ChangeType {
+  CREATE
+  UPDATE
+  DELETE
+  RESTORE
+  STATUS_CHANGE
+  BULK_UPDATE
+}
+
+model AuditLog {
+  id String @id @default(uuid())
+
+  // Action Details
+  action     AuditAction
+  entityType String // e.g., "Property", "TitleMovement"
+  entityId   String
+
+  // Change Details
+  changes  Json? // Detailed changes made
+  metadata Json? // Additional context
+
+  // User & Session Info
+  userId    String
+  ipAddress String?
+  userAgent String?
+
+  // Metadata
+  createdAt DateTime @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id])
+
+  @@index([entityType, entityId])
+  @@index([userId])
+  @@index([action])
+  @@index([createdAt])
+  @@map("audit_logs")
+}
+
+enum AuditAction {
+  CREATE
+  READ
+  UPDATE
+  DELETE
+  LOGIN
+  LOGOUT
+  APPROVE
+  REJECT
+  EXPORT
+  IMPORT
+  RESTORE
+  BULK_UPDATE
+}
+
+// ============================================
+// DOCUMENT MANAGEMENT
+// ============================================
+
+model PropertyDocument {
+  id         String @id @default(uuid())
+  propertyId String
+
+  // Document Details
+  documentType DocumentType
+  fileName     String
+  fileUrl      String       @db.Text
+  fileSize     Int?
+  mimeType     String?
+
+  // Metadata
+  description String?  @db.Text
+  uploadedAt  DateTime @default(now())
+  isActive    Boolean  @default(true)
+
+  // Relations
+  property Property @relation(fields: [propertyId], references: [id], onDelete: Cascade)
+
+  @@index([propertyId])
+  @@index([documentType])
+  @@map("property_documents")
+}
+
+enum DocumentType {
+  TITLE_DEED
+  TAX_DECLARATION
+  TAX_RECEIPT
+  SURVEY_PLAN
+  MORTGAGE_CONTRACT
+  SALE_AGREEMENT
+  LEASE_AGREEMENT
+  APPRAISAL_REPORT
+  PHOTO
+  OTHER
+}
+
+// ============================================
+// SYSTEM CONFIGURATION
+// ============================================
+
+model SystemConfig {
+  id          String   @id @default(uuid())
+  key         String   @unique
+  value       String   @db.Text
+  description String?  @db.Text
+  isActive    Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@map("system_configs")
+}
+
+// ============================================
+// NOTIFICATION SYSTEM
+// ============================================
+
+model Notification {
+  id       String               @id @default(uuid())
+  userId   String
+  title    String
+  message  String               @db.Text
+  type     NotificationType
+  priority NotificationPriority @default(NORMAL)
+
+  // Action & Navigation
+  actionUrl  String? @db.Text
+  entityType String? // e.g., "Property", "TitleMovement", "RealPropertyTax", "ApprovalWorkflow"
+  entityId   String?
+
+  // Status
+  isRead Boolean   @default(false)
+  readAt DateTime?
+
+  // Expiration
+  expiresAt DateTime?
+
+  // Metadata
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([isRead])
+  @@index([type])
+  @@index([priority])
+  @@index([createdAt])
+  @@index([entityType, entityId])
+  @@map("notifications")
+}
+
+enum NotificationType {
+  SYSTEM
+  PROPERTY
+  TAX
+  APPROVAL
+  TITLE_MOVEMENT
+  DOCUMENT
+  AUDIT
+  MAINTENANCE
+}
+
+enum NotificationPriority {
+  LOW
+  NORMAL
+  HIGH
+  URGENT
+}
