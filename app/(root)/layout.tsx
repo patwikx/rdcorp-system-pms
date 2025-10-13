@@ -1,19 +1,17 @@
 // app/(root)/layout.tsx (Type-safe and aligned with schema)
 import { redirect } from 'next/navigation';
 import { auth } from '@/auth';
-import { BusinessUnitModal } from '@/components/modals/business-unit-modal';
 import type { Session } from 'next-auth';
 
 
 // Type guard to ensure we have a complete user session
 function isValidUserSession(session: Session | null): session is Session & {
   user: NonNullable<Session['user']> & {
-    businessUnit: NonNullable<Session['user']['businessUnit']>;
+    businessUnit: NonNullable<Session['user']>;
   }
 } {
   return !!(
     session?.user?.id &&
-    session.user.businessUnit?.id &&
     session.user.isActive
   );
 }
@@ -54,7 +52,6 @@ export default async function RootLayout({
   // We render the page with the modal to handle this edge case
   return (
     <>
-                  <BusinessUnitModal />
             {children}
 
     </>

@@ -1,7 +1,4 @@
 import { notFound } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft, Edit } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { getTitleMovement } from "@/lib/actions/title-movement-actions"
 import { TitleMovementDetails } from "@/components/title-movements/title-movement-details"
 

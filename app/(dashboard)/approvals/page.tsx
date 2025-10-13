@@ -1,5 +1,5 @@
 import { Suspense } from "react"
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Skeleton } from "@/components/ui/skeleton"
 import { ApprovalsContent } from "@/components/approvals/approvals-content"
 import { CheckCircle, Clock, XCircle } from "lucide-react"

@@ -4,7 +4,7 @@ import { RolesStatsSkeleton } from "@/components/users/roles-stats-skeleton"
 import { RolesFilters } from "@/components/users/roles-filters"
 import { RolesListWrapper } from "@/components/users/roles-list-wrapper"
 import { Button } from "@/components/ui/button"
-import { Plus, ArrowLeft } from "lucide-react"
+import { Plus } from "lucide-react"
 import Link from "next/link"
 
 interface RolesPageProps {

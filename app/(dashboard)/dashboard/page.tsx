@@ -1,9 +1,8 @@
 import { getDashboardStats, getQuickActions } from '@/lib/actions/dashboard-actions'
-import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
+import { Card, CardContent, CardHeader } from '@/components/ui/card'
 import { Skeleton } from '@/components/ui/skeleton'
 
-// Dynamic imports to avoid TypeScript module resolution issues during build
-import dynamic from 'next/dynamic'
+
 import { StatsCards } from '@/components/dashboard/stats-cards'
 import { DashboardOverview } from '@/components/dashboard/dashboard-overview'
 import { RecentActivity } from '@/components/dashboard/recent-activity'
@@ -48,7 +47,7 @@ export default async function DashboardPage() {
         <div>
           <h1 className="text-3xl font-bold tracking-tight">Dashboard</h1>
           <p className="text-muted-foreground">
-            Welcome back! Here's an overview of your property management system.
+            Welcome back! Here&apos;s an overview of your property management system.
           </p>
         </div>
       </div>

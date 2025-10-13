@@ -1,6 +1,6 @@
 import { notFound } from "next/navigation"
 import Link from "next/link"
-import { ArrowLeft, Edit, Clock } from "lucide-react"
+import { Edit, Clock } from "lucide-react"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { getPropertyWithFullDetails } from "@/lib/actions/property-actions"

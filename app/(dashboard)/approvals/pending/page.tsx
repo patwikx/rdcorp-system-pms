@@ -14,7 +14,7 @@ export default function PendingApprovalsPage() {
       </div>
 
       <Suspense fallback={<div>Loading...</div>}>
-        <PendingApprovalsList />
+        <PendingApprovalsList pendingApprovals={[]} />
       </Suspense>
     </div>
   )

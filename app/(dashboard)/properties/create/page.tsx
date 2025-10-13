@@ -1,6 +1,4 @@
-import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
+
 import { CreatePropertyForm } from "@/components/properties/create-property-form"
 
 export default function CreatePropertyPage() {

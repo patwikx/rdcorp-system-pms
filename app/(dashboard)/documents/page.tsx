@@ -4,6 +4,9 @@ import { DocumentsStatsSkeleton } from "@/components/documents/documents-stats-s
 import { DocumentsFilters } from "@/components/documents/documents-filters"
 import { DocumentsListWrapper } from "@/components/documents/documents-list-wrapper"
 
+// Force dynamic rendering since we use searchParams
+export const dynamic = 'force-dynamic'
+
 interface DocumentsPageProps {
   searchParams: Promise<{
     search?: string

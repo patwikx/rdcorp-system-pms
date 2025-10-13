@@ -1,7 +1,4 @@
 import { notFound } from "next/navigation"
-import Link from "next/link"
-import { ArrowLeft } from "lucide-react"
-import { Button } from "@/components/ui/button"
 import { getApprovalWorkflowById } from "@/lib/actions/approval-actions"
 import { ApprovalDetails } from "@/components/approvals/approval-details"
 

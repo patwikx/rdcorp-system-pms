@@ -1,11 +1,9 @@
 import { Suspense } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { getApprovalsByStatus } from "@/lib/actions/title-movement-actions"
 import { ApprovalStatus } from "@prisma/client"
 import { CheckCircle, FileText, User, Calendar } from "lucide-react"
-import Link from "next/link"
 
 async function ApprovedRequestsList() {
   const approvals = await getApprovalsByStatus(ApprovalStatus.APPROVED)

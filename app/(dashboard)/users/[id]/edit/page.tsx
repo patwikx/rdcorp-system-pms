@@ -1,8 +1,5 @@
 import { EditUserForm } from "@/components/users/edit-user-form"
 import { getUser } from "@/lib/actions/user-actions"
-import { Button } from "@/components/ui/button"
-import { ArrowLeft } from "lucide-react"
-import Link from "next/link"
 import { notFound } from "next/navigation"
 
 interface EditUserPageProps {

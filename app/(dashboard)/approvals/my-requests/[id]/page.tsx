@@ -1,9 +1,7 @@
 import { notFound } from "next/navigation"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Badge } from "@/components/ui/badge"
-import { Button } from "@/components/ui/button"
 import { getApprovalWorkflowById } from "@/lib/actions/approval-actions"
-import { ApprovalStatus, WorkflowType } from "@prisma/client"
 import { 
   Clock, 
   CheckCircle, 
@@ -11,12 +9,10 @@ import {
   FileText, 
   User, 
   Calendar,
-  ArrowLeft,
   Building2,
-  MapPin,
   AlertTriangle
 } from "lucide-react"
-import Link from "next/link"
+
 
 interface RequestDetailPageProps {
   params: Promise<{

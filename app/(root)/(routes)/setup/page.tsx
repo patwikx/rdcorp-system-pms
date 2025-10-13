@@ -1,21 +1,9 @@
-"use client"
+import React from 'react'
 
-
-import { useEffect } from "react"
-import { useBusinessUnitModal } from "@/hooks/use-bu-modal"
-
-
-const SetupPage = () => {
-  const onOpen = useBusinessUnitModal((state) => state.onOpen)
-  const isOpen = useBusinessUnitModal((state) => state.isOpen)
-
-  useEffect(() => {
-    if (!isOpen) {
-      onOpen()
-    }
-  }, [isOpen, onOpen])
-
-  return null
+const NotAuthorized = () => {
+  return (
+    <div>NotAuthorized</div>
+  )
 }
- 
-export default SetupPage
+
+export default NotAuthorized

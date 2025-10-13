@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import { ApprovalStatus, WorkflowType, ChangeType } from "@prisma/client"
+import { ApprovalStatus, WorkflowType, ChangeType, type Prisma } from "@prisma/client"
 
 export interface ApprovalWorkflowWithDetails {
   id: string
@@ -472,15 +472,19 @@ export async function rejectWorkflow(workflowId: string, reason: string): Promis
 
 // Helper function to apply property updates when approved
 async function applyPropertyUpdate(
-  tx: any, // Prisma transaction client
-  workflow: { id: string; propertyId: string; proposedChanges: any },
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], // Prisma transaction client
+  workflow: { id: string; propertyId: string; proposedChanges: Prisma.JsonValue },
   approvedById: string
 ) {
+  if (!workflow.proposedChanges || typeof workflow.proposedChanges !== 'object' || Array.isArray(workflow.proposedChanges)) {
+    throw new Error('No valid proposed changes found in workflow')
+  }
+
   const proposedChanges = workflow.proposedChanges as Record<string, { oldValue: unknown; newValue: unknown; fieldName: string }>
   
   // Extract just the new values for the property update
   const updateData: Record<string, unknown> = {}
-  const changeHistoryPromises = []
+  const changeHistoryPromises: Promise<unknown>[] = []
   
   for (const [fieldName, change] of Object.entries(proposedChanges)) {
     updateData[fieldName] = change.newValue

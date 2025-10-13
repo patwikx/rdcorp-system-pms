@@ -1,7 +1,7 @@
 import { UserDetails } from "@/components/users/user-details"
 import { getUser } from "@/lib/actions/user-actions"
 import { Button } from "@/components/ui/button"
-import { ArrowLeft, Edit } from "lucide-react"
+import { Edit } from "lucide-react"
 import Link from "next/link"
 import { notFound } from "next/navigation"
 

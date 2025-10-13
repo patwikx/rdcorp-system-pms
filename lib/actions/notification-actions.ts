@@ -205,9 +205,9 @@ async function checkPendingApprovalNotifications(userId: string, user: { role: {
   }
 }
 
-async function checkUnreturnedTitleNotifications(userId: string, user: { role: { permissions: Array<{ module: string, action: string }> } }): Promise<void> {
+async function checkUnreturnedTitleNotifications(userId: string, user: { role: { permissions: Array<{ permission: { module: string, action: string } }> } }): Promise<void> {
   const hasPermission = user.role.permissions.some(p => 
-    p.module === 'title_movement' && p.action === 'read'
+    p.permission.module === 'title_movement' && p.permission.action === 'read'
   )
   
   if (!hasPermission) return

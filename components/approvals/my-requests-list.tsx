@@ -10,10 +10,8 @@ import { getMyApprovalRequests, type ApprovalWorkflowWithDetails } from "@/lib/a
 import { 
   Clock, 
   CheckCircle, 
-  XCircle, 
   FileText, 
   User, 
-  ExternalLink, 
   Search,
   Edit,
   Activity,
@@ -24,18 +22,6 @@ import {
 import Link from "next/link"
 import { toast } from "sonner"
 
-function getStatusIcon(status: string) {
-  switch (status) {
-    case 'PENDING':
-      return <Clock className="h-4 w-4" />
-    case 'APPROVED':
-      return <CheckCircle className="h-4 w-4" />
-    case 'REJECTED':
-      return <XCircle className="h-4 w-4" />
-    default:
-      return <FileText className="h-4 w-4" />
-  }
-}
 
 function getStatusColor(status: string) {
   switch (status) {

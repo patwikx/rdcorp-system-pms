@@ -11,7 +11,7 @@ export default function NotFound() {
           <FileX className="h-16 w-16 text-muted-foreground mb-4" />
           <h2 className="text-2xl font-bold mb-2">Request Not Found</h2>
           <p className="text-muted-foreground text-center mb-6">
-            The approval request you're looking for doesn't exist or you don't have permission to view it.
+            The approval request you&apos;re looking for doesn&apos;t exist or you don&apos;t have permission to view it.
           </p>
           <Button asChild>
             <Link href="/approvals/my-requests">
