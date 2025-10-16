@@ -302,6 +302,44 @@ export async function deleteUser(id: string): Promise<ActionResult> {
   }
 }
 
+export async function resetUserPassword(id: string, newPassword: string): Promise<ActionResult> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return { error: "Unauthorized" }
+    }
+
+    // Check if user exists
+    const user = await prisma.user.findUnique({
+      where: { id }
+    })
+
+    if (!user) {
+      return { error: "User not found" }
+    }
+
+    // Validate password length
+    if (newPassword.length < 6) {
+      return { error: "Password must be at least 6 characters long" }
+    }
+
+    // Hash the new password
+    const hashedPassword = await bcrypt.hash(newPassword, 12)
+
+    // Update user password
+    await prisma.user.update({
+      where: { id },
+      data: { password: hashedPassword }
+    })
+
+    revalidatePath('/users')
+    return { success: true }
+  } catch (error) {
+    console.error('Error resetting user password:', error)
+    return { error: "Failed to reset password" }
+  }
+}
+
 export interface UserStats {
   totalUsers: number
   activeUsers: number

@@ -34,8 +34,6 @@ export const login = async (
       password,
       redirectTo: callbackUrl || "/dashboard",
     });
-
-    return { success: "Logged in successfully!" };
   } catch (error) {
     if (error instanceof AuthError) {
       switch (error.type) {
@@ -45,6 +43,8 @@ export const login = async (
           return { error: "Something went wrong!" };
       }
     }
+    
+    // Re-throw the error to let NextAuth handle redirects
     throw error;
   }
 };

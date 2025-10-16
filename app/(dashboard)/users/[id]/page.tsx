@@ -1,4 +1,5 @@
 import { UserDetails } from "@/components/users/user-details"
+import { ResetPasswordDialog } from "@/components/users/reset-password-dialog"
 import { getUser } from "@/lib/actions/user-actions"
 import { Button } from "@/components/ui/button"
 import { Edit } from "lucide-react"
@@ -22,12 +23,18 @@ export default async function UserPage({ params }: UserPageProps) {
       <div className="flex items-center justify-between">
         <div className="flex items-center space-x-2">
         </div>
-        <Button asChild>
-          <Link href={`/users/${user.id}/edit`}>
-            <Edit className="mr-2 h-4 w-4" />
-            Edit User
-          </Link>
-        </Button>
+        <div className="flex items-center space-x-2">
+          <ResetPasswordDialog 
+            userId={user.id} 
+            userName={`${user.firstName} ${user.lastName}`} 
+          />
+          <Button asChild>
+            <Link href={`/users/${user.id}/edit`}>
+              <Edit className="mr-2 h-4 w-4" />
+              Edit User
+            </Link>
+          </Button>
+        </div>
       </div>
       
       <div className="mb-6">

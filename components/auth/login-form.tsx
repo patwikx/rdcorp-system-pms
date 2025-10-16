@@ -61,13 +61,23 @@ export const LoginForm = () => {
       const data = await login(values)
       if (data?.error) {
         setError(data.error)
-      } else if (data.success) {
-        // On successful login, redirect to the dashboard
-        window.location.assign("/dashboard")
+        setIsLoading(false)
+      } else if (data?.success) {
+        setSuccess(data.success)
+        // Successful login - NextAuth should handle redirect
+        // Don't set loading to false here as redirect should happen
       }
     } catch (error) {
-      setError(`An unexpected error occurred. Please try again. ${error}`)
-    } finally {
+      console.error("Login error:", error)
+      // Check if this is a redirect error (which means successful login)
+      if (error && typeof error === 'object' && 'digest' in error && 
+          typeof error.digest === 'string' && error.digest.includes('NEXT_REDIRECT')) {
+        // This is actually a successful login with redirect
+        setSuccess("Logged in successfully!")
+        // Don't set loading to false, let the redirect happen
+        return;
+      }
+      setError("An unexpected error occurred. Please try again.")
       setIsLoading(false)
     }
   }
