@@ -574,7 +574,7 @@ async function applyTitleMovement(
   }
 
   // Determine new custody based on receiving person/bank
-  const newCustody = titleMovementData.receivedByName || "In Transit"
+  const newCustody = titleMovementData.receivedByName
 
   // Create the title movement record
   const titleMovement = await tx.titleMovement.create({

@@ -22,8 +22,8 @@ export const TitleMovementSchema = z.object({
     .max(200, { message: "Transmittal must be less than 200 characters" }),
   receivedByName: z
     .string()
-    .max(200, { message: "Received by name must be less than 200 characters" })
-    .optional(),
+    .min(1, { message: "Received by name is required" })
+    .max(200, { message: "Received by name must be less than 200 characters" }),
 })
 
 export const TitleMovementUpdateSchema = z.object({

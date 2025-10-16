@@ -73,11 +73,212 @@ export type ApprovalWorkflowWithDetails = ApprovalWorkflow & {
   } | null
 }
 
+export type TitleMovementWithPropertyDetails = TitleMovement & {
+  property: {
+    titleNumber: string
+    lotNumber: string
+    lotArea: string
+    location: string | null
+    barangay: string
+    city: string
+    province: string
+    registeredOwner: string
+    classification: string
+  }
+}
+
 export type ActionResult<T = unknown> = {
   error?: string
   success?: boolean
   data?: T
   details?: Record<string, unknown>
+}
+
+export async function createAndApproveTitleMovement(data: TitleMovementFormData): Promise<ActionResult<TitleMovementWithPropertyDetails>> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      return { error: "Unauthorized" }
+    }
+
+    const validatedData = TitleMovementSchema.safeParse(data)
+    if (!validatedData.success) {
+      return {
+        error: "Invalid form data",
+        details: validatedData.error.flatten().fieldErrors,
+      }
+    }
+
+    // Check if property exists
+    const property = await prisma.property.findUnique({
+      where: { id: validatedData.data.propertyId },
+      select: { id: true, custodyOfTitle: true }
+    })
+
+    if (!property) {
+      return { error: "Property not found" }
+    }
+
+    // Check for existing pending title movement workflows for this property
+    const existingPendingWorkflow = await prisma.approvalWorkflow.findFirst({
+      where: {
+        propertyId: validatedData.data.propertyId,
+        workflowType: WorkflowType.TITLE_TRANSFER,
+        status: ApprovalStatus.PENDING,
+      },
+      include: {
+        initiatedBy: {
+          select: {
+            firstName: true,
+            lastName: true,
+          }
+        }
+      }
+    })
+
+    if (existingPendingWorkflow) {
+      const initiatorName = `${existingPendingWorkflow.initiatedBy.firstName} ${existingPendingWorkflow.initiatedBy.lastName}`.trim()
+      return { 
+        error: `A title movement request is already pending approval for this property. Please wait for the current request (initiated by ${initiatorName}) to be processed before creating a new one.` 
+      }
+    }
+
+    // Check for active title movements that are not yet returned
+    const activeTitleMovement = await prisma.titleMovement.findFirst({
+      where: {
+        propertyId: validatedData.data.propertyId,
+        movementStatus: {
+          in: [MovementStatus.RELEASED, MovementStatus.IN_TRANSIT, MovementStatus.RECEIVED, MovementStatus.PENDING_RETURN]
+        }
+      }
+    })
+
+    if (activeTitleMovement) {
+      const statusDisplay = activeTitleMovement.movementStatus.replace('_', ' ').toLowerCase()
+      return { 
+        error: `Cannot create new title movement. The property title is currently ${statusDisplay}. Please wait for the title to be returned before creating a new movement request.` 
+      }
+    }
+
+    // Check if transmittal number is unique
+    const existingTransmittal = await prisma.titleMovement.findFirst({
+      where: { receivedByTransmittal: validatedData.data.receivedByTransmittal }
+    })
+
+    if (existingTransmittal) {
+      return { error: "Transmittal number already exists. Please generate a new one." }
+    }
+
+    // Get the approver's name
+    const approver = await prisma.user.findUnique({
+      where: { id: validatedData.data.approvedById },
+      select: { firstName: true, lastName: true }
+    })
+
+    if (!approver) {
+      return { error: "Approver not found" }
+    }
+
+    const approverName = `${approver.firstName} ${approver.lastName}`.trim()
+    const newCustody = validatedData.data.receivedByName
+
+    // Use transaction to create title movement, update property, and create change history
+    const result = await prisma.$transaction(async (tx) => {
+      // Create the title movement directly as approved
+      const titleMovement = await tx.titleMovement.create({
+        data: {
+          propertyId: validatedData.data.propertyId,
+          purposeOfRelease: validatedData.data.purposeOfRelease,
+          releasedBy: validatedData.data.releasedBy,
+          approvedBy: approverName,
+          receivedByTransmittal: validatedData.data.receivedByTransmittal,
+          receivedByName: validatedData.data.receivedByName,
+          dateReleased: new Date(),
+          movementStatus: MovementStatus.RELEASED,
+          movedById: session.user.id,
+        },
+      })
+
+      // Update property custody
+      await tx.property.update({
+        where: { id: validatedData.data.propertyId },
+        data: {
+          custodyOfTitle: newCustody,
+          updatedAt: new Date(),
+          updatedById: session.user.id,
+        },
+      })
+
+      // Create change history for title movement
+      await tx.changeHistory.create({
+        data: {
+          propertyId: validatedData.data.propertyId,
+          fieldName: "titleMovement",
+          oldValue: null,
+          newValue: JSON.stringify(titleMovement),
+          changeType: "CREATE",
+          changedById: session.user.id,
+          reason: "Title movement created and auto-approved",
+        },
+      })
+
+      // Create change history for custody update
+      await tx.changeHistory.create({
+        data: {
+          propertyId: validatedData.data.propertyId,
+          fieldName: "custodyOfTitle",
+          oldValue: property.custodyOfTitle,
+          newValue: newCustody,
+          changeType: "UPDATE",
+          changedById: session.user.id,
+          reason: `Custody updated due to approved title movement to ${newCustody}`,
+        },
+      })
+
+      return titleMovement
+    })
+
+    // Fetch the complete movement data with property information for the transmittal
+    const completeMovement = await prisma.titleMovement.findUnique({
+      where: { id: result.id },
+      include: {
+        property: {
+          select: {
+            titleNumber: true,
+            lotNumber: true,
+            lotArea: true,
+            location: true,
+            barangay: true,
+            city: true,
+            province: true,
+            registeredOwner: true,
+            classification: true,
+          }
+        }
+      }
+    })
+
+    revalidatePath("/title-movements")
+    revalidatePath(`/properties/${validatedData.data.propertyId}`)
+    
+    if (!completeMovement) {
+      return { error: "Failed to retrieve created movement data" }
+    }
+
+    return { 
+      success: true, 
+      data: {
+        ...completeMovement,
+        property: {
+          ...completeMovement.property,
+          lotArea: completeMovement.property.lotArea.toString()
+        }
+      }
+    }
+  } catch (error) {
+    console.error("Error creating and approving title movement:", error)
+    return { error: "Failed to create title movement" }
+  }
 }
 
 export async function createTitleMovement(data: TitleMovementFormData): Promise<ActionResult<TitleMovement>> {
@@ -384,7 +585,7 @@ export async function approveWorkflow(data: ApprovalDecisionData): Promise<Actio
       }
       
       // Determine new custody based on receiving person/bank
-      const newCustody = proposedChanges.titleMovement.receivedByName || "In Transit"
+      const newCustody = proposedChanges.titleMovement.receivedByName
       
       const titleMovement = await prisma.titleMovement.create({
         data: {

@@ -8,11 +8,13 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog"
-import { Activity, Plus, Search, Calendar, User, Edit, AlertCircle, CheckCircle } from "lucide-react"
+import { Activity, Plus, Search, Edit, AlertCircle, CheckCircle, Printer } from "lucide-react"
 import { PropertyWithFullDetails } from "@/lib/actions/property-actions"
 import { CreateTitleMovementForm } from "./create-title-movement-form"
 import { UpdateMovementStatusForm } from "./update-movement-status-form"
-import { checkTitleAvailability } from "@/lib/actions/title-movement-actions"
+
+import { checkTitleAvailability, type TitleMovementWithPropertyDetails } from "@/lib/actions/title-movement-actions"
+import { MovementStatus } from "@prisma/client"
 import { format } from "date-fns"
 import { toast } from "sonner"
 
@@ -26,6 +28,7 @@ export function PropertyTitleMovements({ property }: PropertyTitleMovementsProps
   const [isCreateDialogOpen, setIsCreateDialogOpen] = useState(false)
   const [isUpdateDialogOpen, setIsUpdateDialogOpen] = useState(false)
   const [updatingMovement, setUpdatingMovement] = useState<typeof allTitleMovements[0] | null>(null)
+
   const [titleAvailability, setTitleAvailability] = useState<{
     isAvailable: boolean
     reason?: string
@@ -56,6 +59,195 @@ export function PropertyTitleMovements({ property }: PropertyTitleMovementsProps
   const handleUpdateMovement = (movement: typeof allTitleMovements[0]) => {
     setUpdatingMovement(movement)
     setIsUpdateDialogOpen(true)
+  }
+
+  const handlePrintTransmittal = (movement: typeof allTitleMovements[0]) => {
+    // Convert the movement to the required format with property details
+    const transmittalData: TitleMovementWithPropertyDetails = {
+      ...movement,
+      movementStatus: movement.movementStatus as MovementStatus,
+      property: {
+        titleNumber: property.titleNumber,
+        lotNumber: property.lotNumber,
+        lotArea: property.lotArea.toString(),
+        location: property.location,
+        barangay: property.barangay,
+        city: property.city,
+        province: property.province,
+        registeredOwner: property.registeredOwner,
+        classification: property.classification,
+      }
+    }
+    
+    // Generate and print the transmittal directly
+    generateAndPrintTransmittal(transmittalData)
+  }
+
+
+
+  const generateAndPrintTransmittal = (titleMovement: TitleMovementWithPropertyDetails) => {
+    const formatLocation = () => {
+      const parts = [
+        titleMovement.property.location,
+        titleMovement.property.barangay,
+        titleMovement.property.city,
+        titleMovement.property.province
+      ].filter(Boolean)
+      return parts.join(', ')
+    }
+
+    const printContent = `
+      <!DOCTYPE html>
+      <html>
+        <head>
+          <title>Title Transmittal - ${titleMovement.receivedByTransmittal}</title>
+          <style>
+            body { 
+              font-family: Arial, sans-serif; 
+              margin: 0; 
+              padding: 20px; 
+              font-size: 12px;
+              line-height: 1.4;
+            }
+            .header { text-align: center; margin-bottom: 20px; }
+            .title { font-size: 16px; font-weight: bold; margin-bottom: 5px; }
+            .subtitle { font-size: 14px; margin-bottom: 20px; }
+            .section { margin-bottom: 15px; }
+            .section-title { font-weight: bold; margin-bottom: 8px; border-bottom: 1px solid #ccc; padding-bottom: 2px; }
+            .info-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; }
+            .info-item { margin-bottom: 5px; }
+            .label { font-weight: bold; }
+            .signature-section { margin-top: 30px; display: grid; grid-template-columns: 1fr 1fr; gap: 40px; }
+            .signature-box { text-align: center; }
+            .signature-line { border-bottom: 1px solid #000; margin-bottom: 5px; height: 40px; }
+            .separator { border-bottom: 1px solid #ccc; margin: 20px 0; }
+            @media print {
+              body { margin: 0; padding: 15px; }
+              .no-print { display: none; }
+            }
+          </style>
+        </head>
+        <body>
+          <!-- Header -->
+          <div class="header">
+            <h1 class="title">RD Corporation</h1>
+            <p class="subtitle">Property Title Transmittal Form</p>
+            <div style="text-align: right; margin-top: 20px;">
+              <p style="margin: 5px 0;">
+                <span style="font-weight: bold;">Transmittal No:</span> ${titleMovement.receivedByTransmittal || 'N/A'}
+              </p>
+              <p style="margin: 5px 0;">
+                <span style="font-weight: bold;">Date:</span> ${titleMovement.dateReleased ? format(titleMovement.dateReleased, 'MMMM dd, yyyy') : 'N/A'}
+              </p>
+            </div>
+          </div>
+
+          <div class="separator"></div>
+
+          <!-- Property Information -->
+          <div class="section">
+            <h3 class="section-title">PROPERTY INFORMATION</h3>
+            <div class="info-grid">
+              <div>
+                <p style="margin-bottom: 8px;">
+                  <span style="font-weight: bold;">Title Number:</span> ${titleMovement.property.titleNumber}
+                </p>
+                <p style="margin-bottom: 8px;">
+                  <span style="font-weight: bold;">Lot Number:</span> ${titleMovement.property.lotNumber}
+                </p>
+                <p style="margin-bottom: 8px;">
+                  <span style="font-weight: bold;">Lot Area:</span> ${titleMovement.property.lotArea} sqm
+                </p>
+              </div>
+              <div>
+                <p style="margin-bottom: 8px;">
+                  <span style="font-weight: bold;">Registered Owner:</span> ${titleMovement.property.registeredOwner}
+                </p>
+                <p style="margin-bottom: 8px;">
+                  <span style="font-weight: bold;">Classification:</span> ${titleMovement.property.classification.replace('_', ' ')}
+                </p>
+              </div>
+            </div>
+            <div style="margin-top: 12px;">
+              <p>
+                <span style="font-weight: bold;">Location:</span> ${formatLocation()}
+              </p>
+            </div>
+          </div>
+
+          <!-- Movement Details -->
+          <div class="section">
+            <h3 class="section-title">MOVEMENT DETAILS</h3>
+            <div style="margin-bottom: 8px;">
+              <p style="font-weight: bold;">Purpose of Release:</p>
+              <p style="margin-left: 16px; background-color: #f5f5f5; padding: 8px; border-radius: 4px; font-size: 11px; line-height: 1.5;">
+                ${titleMovement.purposeOfRelease || 'N/A'}
+              </p>
+            </div>
+            <div class="info-grid" style="margin-top: 16px;">
+              <p>
+                <span style="font-weight: bold;">Released By:</span> ${titleMovement.releasedBy || 'N/A'}
+              </p>
+              <p>
+                <span style="font-weight: bold;">Approved By:</span> ${titleMovement.approvedBy || 'N/A'}
+              </p>
+            </div>
+            <p style="margin-top: 8px;">
+              <span style="font-weight: bold;">To be Received By:</span> ${titleMovement.receivedByName || 'N/A'}
+            </p>
+          </div>
+
+          <!-- Instructions -->
+          <div class="section">
+            <h3 class="section-title">INSTRUCTIONS</h3>
+            <div style="font-size: 11px; line-height: 1.4;">
+              <p style="margin-bottom: 4px;">• This transmittal authorizes the release and transfer of the above-mentioned property title.</p>
+              <p style="margin-bottom: 4px;">• The receiving party must acknowledge receipt by signing below.</p>
+              <p style="margin-bottom: 4px;">• Any discrepancies must be reported immediately to the issuing office.</p>
+              <p style="margin-bottom: 4px;">• This document serves as official record of title movement.</p>
+            </div>
+          </div>
+
+          <!-- Signature Section -->
+          <div class="signature-section">
+            <div class="signature-box">
+              <div class="signature-line"></div>
+              <p style="font-weight: bold; margin-bottom: 2px;">${titleMovement.releasedBy || 'N/A'}</p>
+              <p style="font-size: 11px;">Released By (Signature over Printed Name)</p>
+              <p style="font-size: 11px; margin-top: 4px;">Date: ${titleMovement.dateReleased ? format(titleMovement.dateReleased, 'MM/dd/yyyy') : '_______________'}</p>
+            </div>
+            <div class="signature-box">
+              <div class="signature-line"></div>
+              <p style="font-weight: bold; margin-bottom: 2px;">${titleMovement.receivedByName || 'N/A'}</p>
+              <p style="font-size: 11px;">Received By (Signature over Printed Name)</p>
+              <p style="font-size: 11px; margin-top: 4px;">Date: _______________</p>
+            </div>
+          </div>
+
+          <!-- Footer -->
+          <div style="margin-top: 32px; padding-top: 16px; border-top: 1px solid #ccc;">
+            <div style="text-align: center; font-size: 11px; color: #666;">
+              <p style="margin-bottom: 4px;">This is a system-generated document. No signature required for digital copy.</p>
+              <p>For inquiries, please contact Hashime Rodrigo of RD Corporation.</p>
+            </div>
+          </div>
+        </body>
+      </html>
+    `
+
+    // Create a new window and print
+    const printWindow = window.open('', '_blank')
+    if (printWindow) {
+      printWindow.document.write(printContent)
+      printWindow.document.close()
+      printWindow.focus()
+      
+      // Wait for content to load then print
+      printWindow.onload = () => {
+        printWindow.print()
+        printWindow.close()
+      }
+    }
   }
 
 
@@ -206,21 +398,6 @@ export function PropertyTitleMovements({ property }: PropertyTitleMovementsProps
         </Card>
       )}
 
-      {/* Summary Card */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-lg">Title Movement History</CardTitle>
-            <CardDescription>Track ownership changes and title transfers</CardDescription>
-          </div>
-          <Activity className="h-5 w-5 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{allTitleMovements.length}</div>
-          <p className="text-sm text-muted-foreground">Total movements recorded</p>
-        </CardContent>
-      </Card>
-
       {/* Filters and Search */}
       <Card>
         <CardHeader>
@@ -262,7 +439,7 @@ export function PropertyTitleMovements({ property }: PropertyTitleMovementsProps
               </div>
             </div>
             
-            <div className="flex items-end flex-col">
+            <div className="flex items-end flex-col mt-[23px]">
               <Button 
                 variant="outline"
                 onClick={handleCreateDialogOpen}
@@ -391,20 +568,32 @@ export function PropertyTitleMovements({ property }: PropertyTitleMovementsProps
                         </div>
                       )}
 
-                      {/* Update Status Button */}
-                      <div className="pt-2 border-t">
-                        <Button 
-                          size="sm"
-                          variant="outline"
-                          className="w-full"
-                          onClick={(e) => {
-                            e.stopPropagation()
-                            handleUpdateMovement(movement)
-                          }}
-                        >
-                          <Edit className="h-3 w-3 mr-2" />
-                          Update Status
-                        </Button>
+                      {/* Action Buttons */}
+                      <div className="pt-2 border-t space-y-2">
+                        <div className="grid grid-cols-2 gap-2">
+                          <Button 
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handleUpdateMovement(movement)
+                            }}
+                          >
+                            <Edit className="h-3 w-3 mr-1" />
+                            Update
+                          </Button>
+                          <Button 
+                            size="sm"
+                            variant="outline"
+                            onClick={(e) => {
+                              e.stopPropagation()
+                              handlePrintTransmittal(movement)
+                            }}
+                          >
+                            <Printer className="h-3 w-3 mr-1" />
+                            Print
+                          </Button>
+                        </div>
                       </div>
 
                       {/* System Info */}
@@ -452,6 +641,8 @@ export function PropertyTitleMovements({ property }: PropertyTitleMovementsProps
           )}
         </DialogContent>
       </Dialog>
+
+
     </div>
   )
 }

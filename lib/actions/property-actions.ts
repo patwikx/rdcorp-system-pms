@@ -4,7 +4,7 @@ import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
 import { PropertySchema, PropertyUpdateSchema, type PropertyFormData, type PropertyUpdateData } from "@/lib/validations/property-schema"
-import { Property, PropertyClassification, PropertyStatus, Prisma, ChangeType, WorkflowType, ApprovalStatus, Priority } from "@prisma/client"
+import { Property, PropertyClassification, PropertyStatus, Prisma, ChangeType, WorkflowType, ApprovalStatus, Priority, DocumentType } from "@prisma/client"
 
 export type PropertyWithDetails = Omit<Property, 'lotArea'> & {
   lotArea: number
@@ -157,7 +157,10 @@ export type ActionResult<T = unknown> = {
   details?: Record<string, unknown>
 }
 
-export async function createProperty(data: PropertyFormData): Promise<ActionResult<Property>> {
+export async function createProperty(
+  data: PropertyFormData, 
+  uploadedFiles?: Array<{ fileName: string; name: string; fileUrl: string }>
+): Promise<ActionResult<Property>> {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -181,7 +184,7 @@ export async function createProperty(data: PropertyFormData): Promise<ActionResu
       return { error: "A property with this title number already exists" }
     }
 
-    // Use a transaction to create property and change history
+    // Use a transaction to create property, change history, and documents
     const result = await prisma.$transaction(async (tx) => {
       // Create the property
       const property = await tx.property.create({
@@ -203,6 +206,45 @@ export async function createProperty(data: PropertyFormData): Promise<ActionResu
           reason: 'New property record created',
         },
       })
+
+      // Create property documents if files were uploaded
+      if (uploadedFiles && uploadedFiles.length > 0) {
+        const getDocumentType = (fileName: string): DocumentType => {
+          const extension = fileName.split('.').pop()?.toLowerCase()
+          const name = fileName.toLowerCase()
+          
+          // Try to detect document type based on filename and extension
+          if (name.includes('title') || name.includes('deed')) return DocumentType.TITLE_DEED
+          if (name.includes('tax') && (name.includes('declaration') || name.includes('decl'))) return DocumentType.TAX_DECLARATION
+          if (name.includes('tax') && (name.includes('receipt') || name.includes('payment'))) return DocumentType.TAX_RECEIPT
+          if (name.includes('survey') || name.includes('plan')) return DocumentType.SURVEY_PLAN
+          if (name.includes('mortgage') || name.includes('loan')) return DocumentType.MORTGAGE_CONTRACT
+          if (name.includes('sale') || name.includes('deed of sale')) return DocumentType.SALE_AGREEMENT
+          if (name.includes('lease') || name.includes('rent')) return DocumentType.LEASE_AGREEMENT
+          if (name.includes('appraisal') || name.includes('valuation')) return DocumentType.APPRAISAL_REPORT
+          if (extension && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) return DocumentType.PHOTO
+          
+          return DocumentType.OTHER
+        }
+
+        const documentPromises = uploadedFiles.map(file => 
+          tx.propertyDocument.create({
+            data: {
+              propertyId: property.id,
+              documentType: getDocumentType(file.name),
+              fileName: file.name,
+              fileUrl: file.fileUrl,
+              fileSize: null, // File size not available from upload result
+              mimeType: null, // MIME type not available from upload result
+              description: `Document uploaded during property creation: ${file.name}`,
+              uploadedAt: new Date(),
+              isActive: true,
+            },
+          })
+        )
+        
+        await Promise.all(documentPromises)
+      }
 
       return property
     })

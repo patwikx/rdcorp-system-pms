@@ -11,6 +11,7 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { LocationSelector } from "@/components/ui/location-selector"
+import { FileUpload, UploadedFileDisplay } from "@/components/file-upload"
 import { PropertySchema, type PropertyFormData } from "@/lib/validations/property-schema"
 import { createProperty } from "@/lib/actions/property-actions"
 import { PropertyClassification, PropertyStatus } from "@prisma/client"
@@ -28,7 +29,8 @@ import {
   Layers,
   School,
   Hash,
-  Ruler
+  Ruler,
+  Upload
 } from "lucide-react"
 import { toast } from "sonner"
 
@@ -54,11 +56,18 @@ const statusColors = {
   [PropertyStatus.INACTIVE]: "bg-gray-400",
 }
 
+interface UploadedFile {
+  fileName: string
+  name: string
+  fileUrl: string
+}
+
 export function CreatePropertyForm() {
   const [isLoading, setIsLoading] = useState(false)
   const [selectedProvince, setSelectedProvince] = useState("")
   const [selectedCity, setSelectedCity] = useState("")
   const [selectedBarangay, setSelectedBarangay] = useState("")
+  const [uploadedFiles, setUploadedFiles] = useState<UploadedFile[]>([])
   const router = useRouter()
 
   const form = useForm({
@@ -86,11 +95,30 @@ export function CreatePropertyForm() {
     },
   })
 
+  const handleFileUploadComplete = (result: UploadedFile) => {
+    if (uploadedFiles.length >= 5) {
+      toast.error("Maximum 5 files allowed")
+      return
+    }
+    
+    setUploadedFiles(prev => [...prev, result])
+    toast.success(`File "${result.name}" uploaded successfully`)
+  }
+
+  const handleFileUploadError = (error: string) => {
+    toast.error(error)
+  }
+
+  const handleRemoveFile = (fileToRemove: UploadedFile) => {
+    setUploadedFiles(prev => prev.filter(file => file !== fileToRemove))
+    toast.success("File removed")
+  }
+
   async function onSubmit(data: PropertyFormData) {
     setIsLoading(true)
     
     try {
-      const result = await createProperty(data)
+      const result = await createProperty(data, uploadedFiles)
       
       if (result.error) {
         toast.error(result.error)
@@ -108,6 +136,9 @@ export function CreatePropertyForm() {
         }
       } else {
         toast.success("Property created successfully")
+        if (uploadedFiles.length > 0) {
+          toast.success(`Property created with ${uploadedFiles.length} file(s) attached`)
+        }
         router.push("/properties")
       }
     } catch (error) {
@@ -539,7 +570,47 @@ export function CreatePropertyForm() {
                   </FormItem>
                 )}
               />
+
+              <div className="space-y-2">
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70 flex items-center space-x-2">
+                  <Upload className="h-4 w-4" />
+                  <span>Supporting Documents</span>
+                </label>
+                <FileUpload
+                  onUploadComplete={handleFileUploadComplete}
+                  onUploadError={handleFileUploadError}
+                  disabled={isLoading}
+                  maxSize={10}
+                  multiple={true}
+                  maxFiles={5}
+                  accept=".pdf,.doc,.docx,.xls,.xlsx,.txt,.jpg,.jpeg,.png,.gif,.webp"
+                />
+                <p className="text-sm text-muted-foreground">
+                  Upload supporting documents (max 5 files, 10MB each)
+                </p>
+              </div>
             </div>
+
+            {/* Display uploaded files */}
+            {uploadedFiles.length > 0 && (
+              <div className="space-y-3">
+                <h4 className="text-sm font-medium">
+                  Uploaded Files ({uploadedFiles.length}/5)
+                </h4>
+                <div className="space-y-2">
+                  {uploadedFiles.map((file, index) => (
+                    <UploadedFileDisplay
+                      key={index}
+                      fileName={file.fileName}
+                      name={file.name}
+                      fileUrl={file.fileUrl}
+                      onRemove={() => handleRemoveFile(file)}
+                      disabled={isLoading}
+                    />
+                  ))}
+                </div>
+              </div>
+            )}
           </CardContent>
         </Card>
 

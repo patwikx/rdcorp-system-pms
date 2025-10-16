@@ -190,7 +190,7 @@ export function ApprovalDecisionDialog({
           <div>
             <span className="font-medium text-muted-foreground">Received By:</span>
             <div className="bg-muted/50 p-2 rounded text-xs mt-1">
-              {titleMovement.receivedByName as string || "—"}
+              {titleMovement.receivedByName as string}
             </div>
           </div>
         </div>

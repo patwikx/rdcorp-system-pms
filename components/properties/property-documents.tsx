@@ -194,23 +194,6 @@ export function PropertyDocuments({ property }: PropertyDocumentsProps) {
 
   return (
     <div className="space-y-6">
-      {/* Summary Card */}
-      <Card>
-        <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-          <div>
-            <CardTitle className="text-lg">Property Documents</CardTitle>
-            <CardDescription>Manage all property-related documents and files</CardDescription>
-          </div>
-          <FileText className="h-5 w-5 text-muted-foreground" />
-        </CardHeader>
-        <CardContent>
-          <div className="text-2xl font-bold">{allDocuments.length}</div>
-          <p className="text-sm text-muted-foreground">
-            Total size: {formatFileSize(allDocuments.reduce((sum, doc) => sum + (doc.fileSize || 0), 0))}
-          </p>
-        </CardContent>
-      </Card>
-
       {/* Filters and Search */}
       <Card>
         <CardHeader>
@@ -275,7 +258,7 @@ export function PropertyDocuments({ property }: PropertyDocumentsProps) {
           </div>
 
           {/* Document Grid */}
-          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
             {filteredDocuments.length === 0 ? (
               <div className="col-span-full text-center py-8">
                 <p className="text-muted-foreground">No documents match your search criteria.</p>

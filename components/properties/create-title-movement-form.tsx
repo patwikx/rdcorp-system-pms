@@ -6,14 +6,14 @@ import { zodResolver } from "@hookform/resolvers/zod"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
 import { Form, FormControl, FormDescription, FormField, FormItem, FormLabel, FormMessage } from "@/components/ui/form"
-import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
-import { Command, CommandEmpty, CommandGroup, CommandInput, CommandItem, CommandList } from "@/components/ui/command"
+
 import { TitleMovementSchema, type TitleMovementFormData } from "@/lib/validations/title-movement-schema"
-import { createTitleMovement, generateNextTransmittalNumber } from "@/lib/actions/title-movement-actions"
-import { getCurrentUser, getApprovalUsers, type ApproverUser } from "@/lib/actions/user-approval-actions"
-import { Save, X, Activity, Loader2, Check, ChevronsUpDown, User } from "lucide-react"
+import { createAndApproveTitleMovement, generateNextTransmittalNumber, type TitleMovementWithPropertyDetails } from "@/lib/actions/title-movement-actions"
+import { getCurrentUser } from "@/lib/actions/user-approval-actions"
+import { TransmittalForm } from "@/components/title-movements/transmittal-form"
+import { Save, X, Activity, Loader2, User } from "lucide-react"
 import { toast } from "sonner"
-import { cn } from "@/lib/utils"
+
 
 interface CreateTitleMovementFormProps {
   propertyId: string
@@ -30,10 +30,10 @@ export function CreateTitleMovementForm({
 }: CreateTitleMovementFormProps) {
   const [isLoading, setIsLoading] = useState(false)
   const [isGeneratingTransmittal, setIsGeneratingTransmittal] = useState(false)
-  const [currentUser, setCurrentUser] = useState<{ firstName: string; lastName: string } | null>(null)
-  const [approvers, setApprovers] = useState<ApproverUser[]>([])
-  const [isLoadingApprovers, setIsLoadingApprovers] = useState(true)
-  const [approverComboboxOpen, setApproverComboboxOpen] = useState(false)
+  const [currentUser, setCurrentUser] = useState<{ id: string; firstName: string; lastName: string } | null>(null)
+  const [showTransmittal, setShowTransmittal] = useState(false)
+  const [createdMovement, setCreatedMovement] = useState<TitleMovementWithPropertyDetails | null>(null)
+
 
   const form = useForm({
     resolver: zodResolver(TitleMovementSchema),
@@ -47,13 +47,12 @@ export function CreateTitleMovementForm({
     },
   })
 
-  // Load current user and approvers on component mount
+  // Load current user on component mount
   useEffect(() => {
     const loadData = async () => {
       try {
-        const [user, approversList, transmittalNumber] = await Promise.all([
+        const [user, transmittalNumber] = await Promise.all([
           getCurrentUser(),
-          getApprovalUsers(),
           generateNextTransmittalNumber()
         ])
         
@@ -61,15 +60,14 @@ export function CreateTitleMovementForm({
           setCurrentUser(user)
           const fullName = `${user.firstName} ${user.lastName}`.trim()
           form.setValue('releasedBy', fullName)
+          // Set the current user as the approver
+          form.setValue('approvedById', user.id)
         }
         
-        setApprovers(approversList)
         form.setValue('receivedByTransmittal', transmittalNumber)
       } catch (error) {
         console.error("Error loading data:", error)
         toast.error("Failed to load user data")
-      } finally {
-        setIsLoadingApprovers(false)
       }
     }
 
@@ -94,7 +92,7 @@ export function CreateTitleMovementForm({
     setIsLoading(true)
     
     try {
-      const result = await createTitleMovement(data)
+      const result = await createAndApproveTitleMovement(data)
       
       if (result.error) {
         toast.error(result.error)
@@ -107,8 +105,10 @@ export function CreateTitleMovementForm({
             }
           })
         }
-      } else if (result.success) {
-        toast.success("Title movement request submitted for approval")
+      } else if (result.success && result.data) {
+        toast.success("Title movement created and approved successfully")
+        setCreatedMovement(result.data)
+        setShowTransmittal(true)
         form.reset({
           propertyId,
           purposeOfRelease: "",
@@ -117,7 +117,6 @@ export function CreateTitleMovementForm({
           receivedByTransmittal: "",
           receivedByName: "",
         })
-        onSuccess?.()
       }
     } catch (error) {
       console.error("Create title movement error:", error)
@@ -127,9 +126,16 @@ export function CreateTitleMovementForm({
     }
   }
 
+  const handleTransmittalClose = () => {
+    setShowTransmittal(false)
+    setCreatedMovement(null)
+    onSuccess?.()
+  }
+
   return (
-    <div className="max-h-[80vh] overflow-y-auto px-1">
-      <Form {...form}>
+    <>
+      <div className="max-h-[80vh] overflow-y-auto px-1">
+        <Form {...form}>
         <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-5">
           {/* Property Info */}
           <div className="bg-muted/50 rounded-lg p-4">
@@ -204,95 +210,22 @@ export function CreateTitleMovementForm({
                 )}
               />
 
-              <FormField
-                control={form.control}
-                name="approvedById"
-                render={({ field }) => (
-                  <FormItem className="flex flex-col">
-                    <FormLabel>Approved By</FormLabel>
-                    <Popover open={approverComboboxOpen} onOpenChange={setApproverComboboxOpen}>
-                      <PopoverTrigger asChild>
-                        <FormControl>
-                          <Button
-                            variant="outline"
-                            role="combobox"
-                            aria-expanded={approverComboboxOpen}
-                            className={cn(
-                              "w-full justify-between",
-                              !field.value && "text-muted-foreground"
-                            )}
-                            disabled={isLoading || isLoadingApprovers}
-                          >
-                            {field.value ? (
-                              <div className="flex items-center space-x-2">
-                                <User className="h-4 w-4" />
-                                <span>
-                                  {(() => {
-                                    const approver = approvers.find(a => a.id === field.value)
-                                    return approver ? `${approver.firstName} ${approver.lastName}` : 'Unknown Approver'
-                                  })()}
-                                </span>
-                              </div>
-                            ) : (
-                              <span>Select approver...</span>
-                            )}
-                            <ChevronsUpDown className="ml-2 h-4 w-4 shrink-0 opacity-50" />
-                          </Button>
-                        </FormControl>
-                      </PopoverTrigger>
-                      <PopoverContent className="w-full p-0" align="start">
-                        <Command>
-                          <CommandInput placeholder="Search approvers..." />
-                          <CommandList>
-                            <CommandEmpty>
-                              {isLoadingApprovers ? "Loading approvers..." : "No approvers found."}
-                            </CommandEmpty>
-                            <CommandGroup>
-                              {approvers.map((approver) => (
-                                <CommandItem
-                                  key={approver.id}
-                                  value={`${approver.firstName} ${approver.lastName}`}
-                                  onSelect={() => {
-                                    form.setValue("approvedById", approver.id)
-                                    setApproverComboboxOpen(false)
-                                  }}
-                                >
-                                  <div className="flex items-center space-x-2 flex-1">
-                                    <User className="h-4 w-4" />
-                                    <div className="flex-1">
-                                      <div className="font-medium">
-                                        {approver.firstName} {approver.lastName}
-                                      </div>
-                                      <div className="text-xs text-muted-foreground">
-                                        {approver.position && approver.department 
-                                          ? `${approver.position} - ${approver.department}`
-                                          : approver.position || approver.department || approver.email
-                                        }
-                                      </div>
-                                    </div>
-                                  </div>
-                                  <Check
-                                    className={cn(
-                                      "ml-auto h-4 w-4",
-                                      field.value === approver.id
-                                        ? "opacity-100"
-                                        : "opacity-0"
-                                    )}
-                                  />
-                                </CommandItem>
-                              ))}
-                            </CommandGroup>
-                          </CommandList>
-                        </Command>
-                      </PopoverContent>
-                    </Popover>
-                    <FormDescription>
-                      Select the authority who will approve this release
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
+              <div className="space-y-2">
+                <label className="text-sm font-medium leading-none peer-disabled:cursor-not-allowed peer-disabled:opacity-70">
+                  Approved By
+                </label>
+                <div className="relative">
+                  <Input 
+                    value={currentUser ? `${currentUser.firstName} ${currentUser.lastName}` : "Loading..."}
+                    disabled={true}
+                    className="bg-muted pr-10"
+                  />
+                  <User className="absolute right-3 top-1/2 transform -translate-y-1/2 h-4 w-4 text-muted-foreground" />
+                </div>
+                <p className="text-sm text-muted-foreground">
+                  Current logged-in user (automatically approved)
+                </p>
+              </div>
             </div>
           </div>
 
@@ -342,7 +275,7 @@ export function CreateTitleMovementForm({
                 name="receivedByName"
                 render={({ field }) => (
                   <FormItem>
-                    <FormLabel>Received By (Optional)</FormLabel>
+                    <FormLabel>Received By</FormLabel>
                     <FormControl>
                       <Input 
                         placeholder="Name of receiving person/entity" 
@@ -361,13 +294,13 @@ export function CreateTitleMovementForm({
           </div>
 
           {/* Important Notice */}
-          <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
+          <div className="bg-green-50 border border-green-200 rounded-lg p-4">
             <div className="flex items-start space-x-2">
-              <Activity className="h-5 w-5 text-yellow-600 mt-0.5" />
+              <Activity className="h-5 w-5 text-green-600 mt-0.5" />
               <div>
-                <h4 className="font-semibold text-yellow-800">Approval Required</h4>
-                <p className="text-sm text-yellow-700 mt-1">
-                  This title movement request will be submitted for approval. Once approved, the title will be marked as released and ready for transmittal.
+                <h4 className="font-semibold text-green-800">Auto-Approved</h4>
+                <p className="text-sm text-green-700 mt-1">
+                  This title movement will be automatically approved and the title will be immediately marked as released and ready for transmittal.
                 </p>
               </div>
             </div>
@@ -384,7 +317,7 @@ export function CreateTitleMovementForm({
               ) : (
                 <>
                   <Save className="h-4 w-4 mr-2" />
-                  Submit for Approval
+                  Create & Approve Movement
                 </>
               )}
             </Button>
@@ -397,6 +330,16 @@ export function CreateTitleMovementForm({
           </div>
         </form>
       </Form>
-    </div>
+      </div>
+
+      {/* Transmittal Form Dialog */}
+      {showTransmittal && createdMovement && (
+        <TransmittalForm
+          isOpen={showTransmittal}
+          onClose={handleTransmittalClose}
+          titleMovement={createdMovement}
+        />
+      )}
+    </>
   )
 }
