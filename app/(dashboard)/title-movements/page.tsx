@@ -3,6 +3,7 @@ import { TitleMovementsList } from "@/components/title-movements/title-movements
 import { TitleMovementsFilters } from "@/components/title-movements/title-movements-filters"
 import { TitleMovementsStatsWrapper } from "@/components/title-movements/title-movements-stats-wrapper"
 import { TitleMovementsStatsSkeleton } from "@/components/title-movements/title-movements-stats-skeleton"
+import { ExportTitleMovementsButton } from "@/components/title-movements/export-title-movements-button"
 
 interface TitleMovementsPageProps {
   searchParams: Promise<{
@@ -16,11 +17,14 @@ interface TitleMovementsPageProps {
 export default function TitleMovementsPage({ searchParams }: TitleMovementsPageProps) {
   return (
     <div className="space-y-6">
-      <div>
-        <h1 className="text-3xl font-bold tracking-tight">Title Movements</h1>
-        <p className="text-muted-foreground">
-          Track and manage property title movements and transfers
-        </p>
+      <div className="flex items-center justify-between">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight">Title Movements</h1>
+          <p className="text-muted-foreground">
+            Track and manage property title movements and transfers
+          </p>
+        </div>
+        <ExportTitleMovementsButton />
       </div>
 
       <Suspense fallback={<TitleMovementsStatsSkeleton />}>

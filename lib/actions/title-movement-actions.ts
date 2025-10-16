@@ -1198,6 +1198,114 @@ export async function returnTitleMovement(data: TitleReturnFormData): Promise<Ac
   }
 }
 
+export async function exportTitleMovementsToCSV(): Promise<string> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      throw new Error("Unauthorized")
+    }
+
+    // Get all title movements with property and user details
+    const titleMovements = await prisma.titleMovement.findMany({
+      include: {
+        property: {
+          select: {
+            titleNumber: true,
+            lotNumber: true,
+            lotArea: true,
+            location: true,
+            barangay: true,
+            city: true,
+            province: true,
+            registeredOwner: true,
+            classification: true,
+            status: true,
+          },
+        },
+        movedBy: {
+          select: {
+            firstName: true,
+            lastName: true,
+            email: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    })
+
+    // Convert title movements to CSV format
+    const csvHeaders = [
+      'Property Title Number',
+      'Property Lot Number',
+      'Property Owner',
+      'Property Location',
+      'Property Classification',
+      'Property Status',
+      'Movement Status',
+      'Date Released',
+      'Released By',
+      'Purpose of Release',
+      'Approved By',
+      'Received By (Transmittal)',
+      'Received By Name',
+      'Turned Over Date',
+      'Turned Over By',
+      'Received By Person',
+      'Date Returned',
+      'Returned By',
+      'Received By On Return',
+      'Moved By',
+      'Moved By Email',
+      'Created Date',
+      'Updated Date'
+    ]
+
+    const csvRows = titleMovements.map(movement => [
+      movement.property.titleNumber,
+      movement.property.lotNumber,
+      movement.property.registeredOwner,
+      `${movement.property.barangay}, ${movement.property.city}, ${movement.property.province}`,
+      movement.property.classification.replace('_', ' '),
+      movement.property.status.replace('_', ' '),
+      movement.movementStatus.replace('_', ' '),
+      movement.dateReleased ? movement.dateReleased.toISOString().split('T')[0] : '',
+      movement.releasedBy || '',
+      movement.purposeOfRelease || '',
+      movement.approvedBy || '',
+      movement.receivedByTransmittal || '',
+      movement.receivedByName || '',
+      movement.turnedOverDate ? movement.turnedOverDate.toISOString().split('T')[0] : '',
+      movement.turnedOverBy || '',
+      movement.receivedByPerson || '',
+      movement.dateReturned ? movement.dateReturned.toISOString().split('T')[0] : '',
+      movement.returnedBy || '',
+      movement.receivedByOnReturn || '',
+      `${movement.movedBy.firstName} ${movement.movedBy.lastName}`,
+      movement.movedBy.email,
+      movement.createdAt.toISOString().split('T')[0],
+      movement.updatedAt.toISOString().split('T')[0]
+    ])
+
+    // Escape CSV values that contain commas, quotes, or newlines
+    const escapeCSVValue = (value: string): string => {
+      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`
+      }
+      return value
+    }
+
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvRows.map(row => row.map(escapeCSVValue).join(','))
+    ].join('\n')
+
+    return csvContent
+  } catch (error) {
+    console.error("Error exporting title movements to CSV:", error)
+    throw new Error("Failed to export title movements to CSV")
+  }
+}
+
 export async function getReturnableTitleMovements(): Promise<TitleMovementWithDetails[]> {
   try {
     const session = await auth()

@@ -13,6 +13,101 @@ import {
 } from "@/lib/validations/real-property-tax-schema"
 import { RealPropertyTax, TaxStatus } from "@prisma/client"
 
+export async function exportPropertyTaxesToCSV(propertyId: string): Promise<string> {
+  try {
+    const session = await auth()
+    if (!session?.user?.id) {
+      throw new Error("Unauthorized")
+    }
+
+    // Get property with all tax records
+    const property = await prisma.property.findUnique({
+      where: { id: propertyId },
+      include: {
+        realPropertyTaxes: {
+          orderBy: [
+            { taxYear: 'desc' },
+            { taxQuarter: 'asc' }
+          ]
+        }
+      }
+    })
+
+    if (!property) {
+      throw new Error("Property not found")
+    }
+
+    // Convert tax records to CSV format
+    const csvHeaders = [
+      'Property Title Number',
+      'Property Lot Number',
+      'Property Owner',
+      'Property Location',
+      'Tax Year',
+      'Tax Quarter',
+      'Tax Amount',
+      'Is Paid',
+      'Amount Paid',
+      'Payment Date',
+      'Official Receipt Number',
+      'Payment Method',
+      'Discount',
+      'Penalty',
+      'Interest',
+      'Due Date',
+      'Period From',
+      'Period To',
+      'Status',
+      'Notes',
+      'Created Date',
+      'Updated Date'
+    ]
+
+    const csvRows = property.realPropertyTaxes.map(tax => [
+      property.titleNumber,
+      property.lotNumber,
+      property.registeredOwner,
+      `${property.barangay}, ${property.city}, ${property.province}`,
+      tax.taxYear.toString(),
+      tax.taxQuarter ? tax.taxQuarter.toString() : 'Annual',
+      Number(tax.taxAmount).toFixed(2),
+      tax.isPaid ? 'Yes' : 'No',
+      tax.amountPaid ? Number(tax.amountPaid).toFixed(2) : '',
+      tax.paymentDate ? tax.paymentDate.toISOString().split('T')[0] : '',
+      tax.officialReceiptNumber || '',
+      tax.paymentMethod || '',
+      tax.discount ? Number(tax.discount).toFixed(2) : '',
+      tax.penalty ? Number(tax.penalty).toFixed(2) : '',
+      tax.interest ? Number(tax.interest).toFixed(2) : '',
+      tax.dueDate.toISOString().split('T')[0],
+      tax.periodFrom.toISOString().split('T')[0],
+      tax.periodTo.toISOString().split('T')[0],
+      tax.status.replace('_', ' '),
+      tax.notes || '',
+      tax.createdAt.toISOString().split('T')[0],
+      tax.updatedAt.toISOString().split('T')[0]
+    ])
+
+    // Escape CSV values that contain commas, quotes, or newlines
+    const escapeCSVValue = (value: string): string => {
+      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`
+      }
+      return value
+    }
+
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvRows.map(row => row.map(escapeCSVValue).join(','))
+    ].join('\n')
+
+    return csvContent
+  } catch (error) {
+    console.error("Error exporting property taxes to CSV:", error)
+    throw new Error("Failed to export property taxes to CSV")
+  }
+}
+
 export type ActionResult<T = unknown> = {
   error?: string
   success?: boolean

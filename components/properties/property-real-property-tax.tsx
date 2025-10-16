@@ -11,6 +11,7 @@ import { PropertyWithFullDetails } from "@/lib/actions/property-actions"
 import { CreateTaxForm } from "./create-tax-form"
 import { EditTaxForm } from "./edit-tax-form"
 import { MarkPaidDialog } from "./mark-paid-dialog"
+import { ExportPropertyTaxesButton } from "./export-property-taxes-button"
 import { format } from "date-fns"
 
 interface PropertyRealPropertyTaxProps {
@@ -107,24 +108,26 @@ export function PropertyRealPropertyTax({ property }: PropertyRealPropertyTaxPro
         <p className="mt-2 text-muted-foreground">
           This property doesn&apos;t have any property tax records yet.
         </p>
-        <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
-          <DialogTrigger asChild>
-            <Button className="mt-4" variant="outline">
-              <Plus className="h-4 w-4 mr-2" />
-              Add Tax Record
-            </Button>
-          </DialogTrigger>
-          <DialogContent className="!w-[800px] !max-w-[800px] !min-w-[800px]" style={{ width: '800px', maxWidth: '800px', minWidth: '800px' }}>
-            <DialogHeader>
-              <DialogTitle>Add Real Property Tax Record</DialogTitle>
-            </DialogHeader>
-            <CreateTaxForm 
-              propertyId={property.id}
-              onSuccess={handleTaxCreated}
-              onCancel={() => setIsAddDialogOpen(false)}
-            />
-          </DialogContent>
-        </Dialog>
+        <div className="flex items-center space-x-2 mt-4">
+          <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
+            <DialogTrigger asChild>
+              <Button variant="outline">
+                <Plus className="h-4 w-4 mr-2" />
+                Add Tax Record
+              </Button>
+            </DialogTrigger>
+            <DialogContent className="!w-[800px] !max-w-[800px] !min-w-[800px]" style={{ width: '800px', maxWidth: '800px', minWidth: '800px' }}>
+              <DialogHeader>
+                <DialogTitle>Add Real Property Tax Record</DialogTitle>
+              </DialogHeader>
+              <CreateTaxForm 
+                propertyId={property.id}
+                onSuccess={handleTaxCreated}
+                onCancel={() => setIsAddDialogOpen(false)}
+              />
+            </DialogContent>
+          </Dialog>
+        </div>
       </div>
     )
   }
@@ -255,7 +258,11 @@ export function PropertyRealPropertyTax({ property }: PropertyRealPropertyTaxPro
               </div>
             </div>
             
-            <div className="flex items-end">
+            <div className="flex items-end space-x-2">
+              <ExportPropertyTaxesButton 
+                propertyId={property.id}
+                propertyTitle={property.titleNumber}
+              />
               <Dialog open={isAddDialogOpen} onOpenChange={setIsAddDialogOpen}>
                 <DialogTrigger asChild>
                   <Button variant="outline">

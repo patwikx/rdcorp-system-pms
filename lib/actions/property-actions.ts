@@ -666,6 +666,121 @@ export async function getPropertyWithFullDetails(id: string): Promise<PropertyWi
   }
 }
 
+export async function exportPropertiesToCSV(): Promise<string> {
+  try {
+    const properties = await prisma.property.findMany({
+      where: {
+        isDeleted: false,
+      },
+      include: {
+        createdBy: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        updatedBy: {
+          select: {
+            firstName: true,
+            lastName: true,
+          },
+        },
+        _count: {
+          select: {
+            titleMovements: true,
+            approvalWorkflows: true,
+            changeHistories: true,
+            documents: true,
+            realPropertyTaxes: true,
+          },
+        },
+      },
+      orderBy: { createdAt: "desc" },
+    })
+
+    // Convert properties to CSV format
+    const csvHeaders = [
+      'Title Number',
+      'Lot Number',
+      'Lot Area (sqm)',
+      'Location',
+      'Barangay',
+      'City',
+      'Province',
+      'Zip Code',
+      'Description',
+      'Classification',
+      'Status',
+      'Registered Owner',
+      'Bank',
+      'Custody of Title',
+      'Encumbrance',
+      'Mortgage Details',
+      'Borrower/Mortgagor',
+      'Tax Declaration',
+      'Remarks',
+      'Created Date',
+      'Created By',
+      'Updated Date',
+      'Updated By',
+      'Title Movements Count',
+      'Documents Count',
+      'Tax Records Count',
+      'Approval Workflows Count',
+      'Change Histories Count'
+    ]
+
+    const csvRows = properties.map(property => [
+      property.titleNumber,
+      property.lotNumber,
+      Number(property.lotArea).toString(),
+      property.location || '',
+      property.barangay,
+      property.city,
+      property.province,
+      property.zipCode || '',
+      property.description || '',
+      property.classification.replace('_', ' '),
+      property.status.replace('_', ' '),
+      property.registeredOwner,
+      property.bank || '',
+      property.custodyOfTitle || '',
+      property.encumbrance || '',
+      property.mortgageDetails || '',
+      property.borrowerMortgagor || '',
+      property.taxDeclaration || '',
+      property.remarks || '',
+      property.createdAt.toISOString().split('T')[0],
+      `${property.createdBy.firstName} ${property.createdBy.lastName}`,
+      property.updatedAt.toISOString().split('T')[0],
+      property.updatedBy ? `${property.updatedBy.firstName} ${property.updatedBy.lastName}` : '',
+      property._count.titleMovements.toString(),
+      property._count.documents.toString(),
+      property._count.realPropertyTaxes.toString(),
+      property._count.approvalWorkflows.toString(),
+      property._count.changeHistories.toString()
+    ])
+
+    // Escape CSV values that contain commas, quotes, or newlines
+    const escapeCSVValue = (value: string): string => {
+      if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+        return `"${value.replace(/"/g, '""')}"`
+      }
+      return value
+    }
+
+    const csvContent = [
+      csvHeaders.join(','),
+      ...csvRows.map(row => row.map(escapeCSVValue).join(','))
+    ].join('\n')
+
+    return csvContent
+  } catch (error) {
+    console.error("Error exporting properties to CSV:", error)
+    throw new Error("Failed to export properties to CSV")
+  }
+}
+
 export async function getProperties(params?: {
   search?: string
   classification?: PropertyClassification
