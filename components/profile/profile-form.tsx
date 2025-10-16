@@ -18,8 +18,10 @@ import {
   Shield, 
   Camera,
   Save,
-  Loader2
+  Loader2,
+  Key
 } from "lucide-react"
+import { ChangePasswordDialog } from "./change-password-dialog"
 
 interface ProfileFormProps {
   user: {
@@ -226,6 +228,35 @@ export function ProfileForm({ user }: ProfileFormProps) {
               </Button>
             </div>
           </form>
+        </CardContent>
+      </Card>
+
+      {/* Security Settings */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2">
+            <Key className="h-5 w-5" />
+            Security Settings
+          </CardTitle>
+          <CardDescription>
+            Manage your account security and password
+          </CardDescription>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="flex items-center justify-between">
+            <div>
+              <h3 className="font-semibold">Password</h3>
+              <p className="text-sm text-muted-foreground">
+                Change your account password to keep your account secure
+              </p>
+            </div>
+            <ChangePasswordDialog>
+              <Button variant="outline" className="flex items-center gap-2">
+                <Key className="h-4 w-4" />
+                Change Password
+              </Button>
+            </ChangePasswordDialog>
+          </div>
         </CardContent>
       </Card>
 
