@@ -29,6 +29,9 @@ interface DocumentsListProps {
     search?: string
     documentType?: string
     page?: string
+    filename?: string
+    id?: string
+    property?: string
   }>
 }
 
@@ -76,12 +79,20 @@ export function DocumentsList({ searchParams }: DocumentsListProps) {
   const [filters, setFilters] = useState<{
     search?: string
     documentType?: string
+    filename?: string
+    id?: string
+    property?: string
   }>({})
 
   useEffect(() => {
     const loadFilters = async () => {
       const params = await searchParams
       setFilters(params)
+      
+      // If coming from global search with specific document, set search to filename
+      if (params.filename && !params.search) {
+        setFilters(prev => ({ ...prev, search: params.filename }))
+      }
     }
     loadFilters()
   }, [searchParams])
@@ -166,7 +177,10 @@ export function DocumentsList({ searchParams }: DocumentsListProps) {
           const Icon = documentTypeIcons[document.documentType]
           
           return (
-            <Card key={document.id}>
+            <Card 
+              key={document.id} 
+              className={filters.id === document.id ? "ring-2 ring-primary ring-offset-2" : ""}
+            >
               <CardHeader className="pb-3">
                 <div className="flex items-start justify-between">
                   <div className="flex items-center gap-2 min-w-0 flex-1">

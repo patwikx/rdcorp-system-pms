@@ -1,6 +1,7 @@
 'use client'
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
+import { useSearchParams } from "next/navigation"
 import { PropertyWithFullDetails } from "@/lib/actions/property-actions"
 import { PropertyTabs } from "./property-tabs"
 import { PropertyOverview } from "./property-overview"
@@ -14,7 +15,15 @@ interface PropertyDetailsProps {
 }
 
 export function PropertyDetails({ property }: PropertyDetailsProps) {
+  const searchParams = useSearchParams()
+  const tabFromUrl = searchParams.get('tab')
   const [activeTab, setActiveTab] = useState("overview")
+
+  useEffect(() => {
+    if (tabFromUrl && ['overview', 'taxes', 'movements', 'documents', 'history'].includes(tabFromUrl)) {
+      setActiveTab(tabFromUrl)
+    }
+  }, [tabFromUrl])
 
   const renderTabContent = () => {
     switch (activeTab) {

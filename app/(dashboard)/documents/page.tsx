@@ -12,6 +12,9 @@ interface DocumentsPageProps {
     search?: string
     documentType?: string
     page?: string
+    filename?: string
+    id?: string
+    property?: string
   }>
 }
 

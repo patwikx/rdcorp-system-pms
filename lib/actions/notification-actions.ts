@@ -3,7 +3,7 @@
 
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import { addDays, startOfDay } from "date-fns"
+import { addDays } from "date-fns"
 import { NotificationType, NotificationPriority } from "@prisma/client"
 
 export interface NotificationData {
@@ -63,8 +63,6 @@ export async function getAllNotifications(): Promise<NotificationData[]> {
 
 async function checkAndCreateSystemNotifications(userId: string): Promise<void> {
   try {
-    // eslint-disable-next-line @typescript-eslint/no-unused-vars
-    const today = startOfDay(new Date())
     const user = await prisma.user.findUnique({
       where: { id: userId },
       include: {
@@ -144,7 +142,7 @@ async function checkOverdueTaxNotifications(userId: string, user: { role: { perm
         message: `Property tax for ${tax.property.titleNumber} (${tax.property.registeredOwner}) is ${daysOverdue} days overdue. Amount due: ₱${tax.taxAmount.toNumber().toLocaleString()}`,
         type: NotificationType.TAX,
         priority,
-        actionUrl: `/property-tax/${tax.id}`,
+        actionUrl: `/properties/${tax.property.id}?tab=taxes`,
         entityType: "RealPropertyTax",
         entityId: tax.id,
         expiresAt: addDays(today, 30)
@@ -379,6 +377,7 @@ export async function createPropertyNotification(
 export async function createTaxNotification(
   userId: string,
   taxId: string,
+  propertyId: string,
   title: string,
   message: string,
   priority: NotificationPriority = NotificationPriority.NORMAL
@@ -391,7 +390,7 @@ export async function createTaxNotification(
         message,
         type: NotificationType.TAX,
         priority,
-        actionUrl: `/property-tax/${taxId}`,
+        actionUrl: `/properties/${propertyId}?tab=taxes`,
         entityType: "RealPropertyTax",
         entityId: taxId,
         expiresAt: addDays(new Date(), 30)
@@ -451,6 +450,33 @@ export async function createTitleMovementNotification(
     })
   } catch (error) {
     console.error("Error creating title movement notification:", error)
+  }
+}
+
+export async function createDocumentNotification(
+  userId: string,
+  documentId: string,
+  propertyId: string,
+  title: string,
+  message: string,
+  priority: NotificationPriority = NotificationPriority.NORMAL
+): Promise<void> {
+  try {
+    await prisma.notification.create({
+      data: {
+        userId,
+        title,
+        message,
+        type: NotificationType.DOCUMENT,
+        priority,
+        actionUrl: `/properties/${propertyId}?tab=documents`,
+        entityType: "PropertyDocument",
+        entityId: documentId,
+        expiresAt: addDays(new Date(), 30)
+      }
+    })
+  } catch (error) {
+    console.error("Error creating document notification:", error)
   }
 }
 
