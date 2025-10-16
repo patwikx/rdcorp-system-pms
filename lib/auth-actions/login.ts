@@ -9,7 +9,7 @@ import { signIn } from "../../auth";
 export const login = async (
   values: z.infer<typeof LoginSchema>,
   callbackUrl?: string | null
-) => {
+): Promise<{ error?: string; success?: string }> => {
   const validatedFields = LoginSchema.safeParse(values);
   
   if (!validatedFields.success) {
@@ -34,6 +34,9 @@ export const login = async (
       password,
       redirectTo: callbackUrl || "/dashboard",
     });
+    
+    // This line should not be reached due to redirect, but just in case
+    return { success: "Logged in successfully!" };
   } catch (error) {
     if (error instanceof AuthError) {
       switch (error.type) {
