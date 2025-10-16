@@ -21,6 +21,7 @@ import {
   MovementStatus, 
   WorkflowType, 
   ApprovalStatus,
+  DocumentType,
   Prisma 
 } from "@prisma/client"
 
@@ -94,7 +95,10 @@ export type ActionResult<T = unknown> = {
   details?: Record<string, unknown>
 }
 
-export async function createAndApproveTitleMovement(data: TitleMovementFormData): Promise<ActionResult<TitleMovementWithPropertyDetails>> {
+export async function createAndApproveTitleMovement(
+  data: TitleMovementFormData,
+  uploadedFiles?: Array<{ fileName: string; name: string; fileUrl: string }>
+): Promise<ActionResult<TitleMovementWithPropertyDetails>> {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -234,6 +238,45 @@ export async function createAndApproveTitleMovement(data: TitleMovementFormData)
           reason: `Custody updated due to approved title movement to ${newCustody}`,
         },
       })
+
+      // Create title movement documents if files were uploaded
+      if (uploadedFiles && uploadedFiles.length > 0) {
+        const getDocumentType = (fileName: string): DocumentType => {
+          const extension = fileName.split('.').pop()?.toLowerCase()
+          const name = fileName.toLowerCase()
+          
+          // Try to detect document type based on filename and extension
+          if (name.includes('title') || name.includes('deed')) return DocumentType.TITLE_DEED
+          if (name.includes('tax') && (name.includes('declaration') || name.includes('decl'))) return DocumentType.TAX_DECLARATION
+          if (name.includes('tax') && (name.includes('receipt') || name.includes('payment'))) return DocumentType.TAX_RECEIPT
+          if (name.includes('survey') || name.includes('plan')) return DocumentType.SURVEY_PLAN
+          if (name.includes('mortgage') || name.includes('loan')) return DocumentType.MORTGAGE_CONTRACT
+          if (name.includes('sale') || name.includes('deed of sale')) return DocumentType.SALE_AGREEMENT
+          if (name.includes('lease') || name.includes('rent')) return DocumentType.LEASE_AGREEMENT
+          if (name.includes('appraisal') || name.includes('valuation')) return DocumentType.APPRAISAL_REPORT
+          if (extension && ['jpg', 'jpeg', 'png', 'gif', 'webp'].includes(extension)) return DocumentType.PHOTO
+          
+          return DocumentType.OTHER
+        }
+
+        const documentPromises = uploadedFiles.map(file => 
+          tx.propertyDocument.create({
+            data: {
+              propertyId: validatedData.data.propertyId,
+              documentType: getDocumentType(file.name),
+              fileName: file.name,
+              fileUrl: file.fileUrl,
+              fileSize: null, // File size not available from upload result
+              mimeType: null, // MIME type not available from upload result
+              description: `Document uploaded for title movement ${titleMovement.receivedByTransmittal || titleMovement.id}: ${file.name}`,
+              uploadedAt: new Date(),
+              isActive: true,
+            },
+          })
+        )
+        
+        await Promise.all(documentPromises)
+      }
 
       return titleMovement
     })
