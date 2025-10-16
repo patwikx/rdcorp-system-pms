@@ -61,9 +61,6 @@ export default async function DashboardPage() {
         <div className="lg:col-span-2 space-y-6">
           {/* Dashboard Overview Charts */}
           <DashboardOverview stats={dashboardStats} />
-          
-          {/* Recent Activity */}
-          <RecentActivity activities={dashboardStats.recentActivity} />
         </div>
 
         {/* Right Column - 1/3 width */}
