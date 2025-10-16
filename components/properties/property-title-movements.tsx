@@ -14,6 +14,7 @@ import { CreateTitleMovementForm } from "./create-title-movement-form"
 import { UpdateMovementStatusForm } from "./update-movement-status-form"
 import { checkTitleAvailability } from "@/lib/actions/title-movement-actions"
 import { format } from "date-fns"
+import { toast } from "sonner"
 
 interface PropertyTitleMovementsProps {
   property: PropertyWithFullDetails
@@ -42,14 +43,14 @@ export function PropertyTitleMovements({ property }: PropertyTitleMovementsProps
     // Refresh availability status
     checkAvailability()
     // Refresh the page or update the property data
-    window.location.reload()
+    //window.location.reload()
   }
 
   const handleMovementUpdated = () => {
     setIsUpdateDialogOpen(false)
     setUpdatingMovement(null)
     // Refresh the page or update the property data
-    window.location.reload()
+    //window.location.reload()
   }
 
   const handleUpdateMovement = (movement: typeof allTitleMovements[0]) => {
@@ -64,7 +65,7 @@ export function PropertyTitleMovements({ property }: PropertyTitleMovementsProps
       const availability = await checkTitleAvailability(property.id)
       setTitleAvailability(availability)
     } catch (error) {
-      console.error("Error checking title availability:", error)
+      toast.error(`Error checking title availability: ${error}`)
       setTitleAvailability({
         isAvailable: false,
         reason: "Unable to check title status",
@@ -292,111 +293,125 @@ export function PropertyTitleMovements({ property }: PropertyTitleMovementsProps
             </Dialog>
           </div>
 
-          {/* Movement Records */}
-          <div className="space-y-4">
+          {/* Movement Records Grid */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {filteredMovements.length === 0 ? (
-              <div className="text-center py-8">
-                <p className="text-muted-foreground">No movement records match your search criteria.</p>
+              <div className="col-span-full text-center py-12">
+                <Activity className="mx-auto h-12 w-12 text-muted-foreground" />
+                <h3 className="mt-4 text-lg font-semibold">No movement records found</h3>
+                <p className="mt-2 text-muted-foreground">No movement records match your search criteria.</p>
               </div>
             ) : (
               filteredMovements.map((movement, index) => (
-                <Card key={movement.id} className="relative">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 space-y-4">
-                        {/* Movement Header */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            {getMovementStatusBadge(movement.movementStatus)}
-                            <div className="flex items-center space-x-2 text-sm text-muted-foreground">
-                              <Calendar className="h-4 w-4" />
-                              <span>
-                                {movement.dateReleased 
-                                  ? format(new Date(movement.dateReleased), 'MMM dd, yyyy')
-                                  : format(new Date(movement.createdAt), 'MMM dd, yyyy')
-                                }
-                              </span>
-                            </div>
-                          </div>
-                          <div className="text-sm text-muted-foreground">
-                            #{index + 1}
-                          </div>
-                        </div>
-
-                        {/* Movement Details */}
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                          {movement.releasedBy && (
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2 text-sm font-medium text-muted-foreground">
-                                <User className="h-4 w-4" />
-                                <span>Released By</span>
-                              </div>
-                              <p className="font-semibold">{movement.releasedBy}</p>
-                            </div>
-                          )}
-
-                          {movement.receivedByName && (
-                            <div className="space-y-1">
-                              <div className="flex items-center space-x-2 text-sm font-medium text-muted-foreground">
-                                <User className="h-4 w-4" />
-                                <span>Received By</span>
-                              </div>
-                              <p className="font-semibold">{movement.receivedByName}</p>
-                            </div>
-                          )}
-
-                          {movement.turnedOverDate && (
-                            <div className="space-y-1">
-                              <div className="text-sm font-medium text-muted-foreground">
-                                Turned Over Date
-                              </div>
-                              <p className="text-sm font-semibold">
-                                {format(new Date(movement.turnedOverDate), 'MMM dd, yyyy')}
-                              </p>
-                            </div>
-                          )}
-
-                          {movement.dateReturned && (
-                            <div className="space-y-1">
-                              <div className="text-sm font-medium text-muted-foreground">
-                                Date Returned
-                              </div>
-                              <p className="text-sm font-semibold">
-                                {format(new Date(movement.dateReturned), 'MMM dd, yyyy')}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* Purpose of Release */}
-                        {movement.purposeOfRelease && (
-                          <div className="space-y-1">
-                            <div className="text-sm font-medium text-muted-foreground">Purpose of Release</div>
-                            <p className="text-sm bg-muted/50 p-3 rounded-md">{movement.purposeOfRelease}</p>
-                          </div>
-                        )}
-
-                        {/* System Info */}
-                        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                          <div>
-                            Created by {movement.movedBy.firstName} {movement.movedBy.lastName}
-                          </div>
-                          <div>
-                            {format(new Date(movement.createdAt), 'MMM dd, yyyy HH:mm')}
+                <Card 
+                  key={movement.id} 
+                  className="relative cursor-pointer hover:shadow-md transition-shadow duration-200 group"
+                  onClick={() => handleUpdateMovement(movement)}
+                >
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      {/* Header with movement number */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-2 min-w-0 flex-1">
+                          <Activity className="h-4 w-4 text-primary" />
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-semibold text-sm">Movement #{index + 1}</h4>
+                            <p className="text-xs text-muted-foreground">
+                              {movement.dateReleased 
+                                ? format(new Date(movement.dateReleased), 'MMM dd, yyyy')
+                                : format(new Date(movement.createdAt), 'MMM dd, yyyy')
+                              }
+                            </p>
                           </div>
                         </div>
                       </div>
 
-                      {/* Actions */}
-                      <div className="ml-4">
+                      {/* Status */}
+                      <div className="flex flex-wrap gap-2">
+                        <div className="inline-flex">
+                          {getMovementStatusBadge(movement.movementStatus)}
+                        </div>
+                      </div>
+
+                      {/* Key Details */}
+                      <div className="space-y-2 text-xs">
+                        {movement.releasedBy && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Released by:</span>
+                            <span className="font-medium truncate ml-2" title={movement.releasedBy}>
+                              {movement.releasedBy}
+                            </span>
+                          </div>
+                        )}
+                        
+                        {movement.receivedByName && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Received by:</span>
+                            <span className="font-medium truncate ml-2" title={movement.receivedByName}>
+                              {movement.receivedByName}
+                            </span>
+                          </div>
+                        )}
+
+                        {movement.turnedOverDate && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Turned over:</span>
+                            <span className="font-medium">
+                              {format(new Date(movement.turnedOverDate), 'MMM dd')}
+                            </span>
+                          </div>
+                        )}
+
+                        {movement.dateReturned && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Returned:</span>
+                            <span className="font-medium">
+                              {format(new Date(movement.dateReturned), 'MMM dd')}
+                            </span>
+                          </div>
+                        )}
+
+                        {movement.receivedByTransmittal && (
+                          <div className="pt-1 border-t">
+                            <div className="text-muted-foreground mb-1">Transmittal:</div>
+                            <div className="font-mono text-xs bg-muted/50 p-1 rounded truncate">
+                              {movement.receivedByTransmittal}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Purpose of Release */}
+                      {movement.purposeOfRelease && (
+                        <div className="pt-2 border-t">
+                          <div className="text-xs text-muted-foreground mb-1">Purpose:</div>
+                          <p className="text-xs bg-muted/30 p-2 rounded leading-relaxed line-clamp-3">
+                            {movement.purposeOfRelease}
+                          </p>
+                        </div>
+                      )}
+
+                      {/* Update Status Button */}
+                      <div className="pt-2 border-t">
                         <Button 
-                          variant="outline" 
                           size="sm"
-                          onClick={() => handleUpdateMovement(movement)}
+                          variant="outline"
+                          className="w-full"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleUpdateMovement(movement)
+                          }}
                         >
-                          <Edit className="h-3 w-3 mr-1" />
+                          <Edit className="h-3 w-3 mr-2" />
                           Update Status
                         </Button>
+                      </div>
+
+                      {/* System Info */}
+                      <div className="text-xs text-muted-foreground pt-1 border-t">
+                        <div className="truncate">
+                          By {movement.movedBy.firstName} {movement.movedBy.lastName}
+                        </div>
                       </div>
                     </div>
                   </CardContent>

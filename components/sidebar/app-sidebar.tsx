@@ -24,6 +24,7 @@ import type { Session } from "next-auth"
 import type { UserPermission } from "@/next-auth"
 import { NavMain } from "./nav-main"
 import { NavUser } from "./nav-user"
+import Image from "next/image"
 
 interface AppSidebarProps extends React.ComponentProps<typeof Sidebar> {
   session: Session
@@ -227,7 +228,7 @@ export function AppSidebar({
       <SidebarHeader className="mt-4">
         <div className="flex items-center gap-2">
           <div className="flex h-8 w-8 items-center justify-center rounded-lg bg-primary text-primary-foreground">
-            <Building2 className="h-5 w-5" />
+            <Image src='/rdcorp-logo.png' height={30} width={30} alt="rdcorp-logo" />
           </div>
           <div className="flex flex-col group-data-[collapsible=icon]:hidden">
             <span className="text-sm font-semibold">RD Corporation</span>

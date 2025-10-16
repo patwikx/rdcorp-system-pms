@@ -1,6 +1,6 @@
 "use client"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { useRouter } from "next/navigation"
 import { useForm } from "react-hook-form"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -31,6 +31,12 @@ import {
   Ruler
 } from "lucide-react"
 import { toast } from "sonner"
+import { 
+  regions, 
+  provinces, 
+  cities, 
+  barangays 
+} from "select-philippines-address"
 
 // Classification icons mapping
 const classificationIcons = {
@@ -63,6 +69,7 @@ export function EditPropertyForm({ property }: EditPropertyFormProps) {
   const [selectedProvince, setSelectedProvince] = useState("")
   const [selectedCity, setSelectedCity] = useState("")
   const [selectedBarangay, setSelectedBarangay] = useState("")
+  const [isLoadingLocation, setIsLoadingLocation] = useState(true)
   const router = useRouter()
 
   const form = useForm({
@@ -90,6 +97,63 @@ export function EditPropertyForm({ property }: EditPropertyFormProps) {
       remarks: property.remarks || "",
     },
   })
+
+  // Load existing location codes based on property data
+  useEffect(() => {
+    const loadExistingLocationCodes = async () => {
+      setIsLoadingLocation(true)
+      try {
+        // Get all regions first
+        const regionData = await regions()
+        const allProvinces = []
+        
+        // Load provinces from all regions
+        for (const region of regionData) {
+          const provinceData = await provinces(region.region_code)
+          allProvinces.push(...provinceData)
+        }
+        
+        // Find province code by name
+        const foundProvince = allProvinces.find(p => 
+          p.province_name.toLowerCase() === property.province.toLowerCase()
+        )
+        
+        if (foundProvince) {
+          setSelectedProvince(foundProvince.province_code)
+          
+          // Load cities for this province
+          const cityData = await cities(foundProvince.province_code)
+          const foundCity = cityData.find(c => 
+            c.city_name.toLowerCase() === property.city.toLowerCase()
+          )
+          
+          if (foundCity) {
+            setSelectedCity(foundCity.city_code)
+            
+            // Load barangays for this city
+            const barangayData = await barangays(foundCity.city_code)
+            const foundBarangay = barangayData.find(b => 
+              b.brgy_name.toLowerCase() === property.barangay.toLowerCase()
+            )
+            
+            if (foundBarangay) {
+              setSelectedBarangay(foundBarangay.brgy_code)
+            }
+          }
+        }
+      } catch (error) {
+        console.error("Error loading existing location codes:", error)
+      } finally {
+        setIsLoadingLocation(false)
+      }
+    }
+
+    if (property.province && property.city && property.barangay) {
+      loadExistingLocationCodes()
+    } else {
+      setIsLoadingLocation(false)
+    }
+  }, [property.province, property.city, property.barangay])
 
   async function onSubmit(data: PropertyUpdateData) {
     setIsLoading(true)
@@ -125,7 +189,8 @@ export function EditPropertyForm({ property }: EditPropertyFormProps) {
 
   return (
     <Form {...form}>
-      <form onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+      <form id="edit-property-form" onSubmit={form.handleSubmit(onSubmit)} className="space-y-8">
+
         {/* Basic Information */}
         <Card>
           <CardHeader>
@@ -333,30 +398,47 @@ export function EditPropertyForm({ property }: EditPropertyFormProps) {
 
             {/* Philippines Location Selector */}
             <div className="space-y-4">
-              <LocationSelector
-                selectedProvince={selectedProvince}
-                selectedCity={selectedCity}
-                selectedBarangay={selectedBarangay}
-                onProvinceChange={(provinceCode, provinceName) => {
-                  setSelectedProvince(provinceCode)
-                  form.setValue("province", provinceName)
-                  setSelectedCity("")
-                  setSelectedBarangay("")
-                  form.setValue("city", "")
-                  form.setValue("barangay", "")
-                }}
-                onCityChange={(cityCode, cityName) => {
-                  setSelectedCity(cityCode)
-                  form.setValue("city", cityName)
-                  setSelectedBarangay("")
-                  form.setValue("barangay", "")
-                }}
-                onBarangayChange={(barangayCode, barangayName) => {
-                  setSelectedBarangay(barangayCode)
-                  form.setValue("barangay", barangayName)
-                }}
-                disabled={isLoading}
-              />
+              {isLoadingLocation ? (
+                <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Province</label>
+                    <div className="h-10 bg-muted animate-pulse rounded-md" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">City/Municipality</label>
+                    <div className="h-10 bg-muted animate-pulse rounded-md" />
+                  </div>
+                  <div className="space-y-2">
+                    <label className="text-sm font-medium">Barangay</label>
+                    <div className="h-10 bg-muted animate-pulse rounded-md" />
+                  </div>
+                </div>
+              ) : (
+                <LocationSelector
+                  selectedProvince={selectedProvince}
+                  selectedCity={selectedCity}
+                  selectedBarangay={selectedBarangay}
+                  onProvinceChange={(provinceCode, provinceName) => {
+                    setSelectedProvince(provinceCode)
+                    form.setValue("province", provinceName)
+                    setSelectedCity("")
+                    setSelectedBarangay("")
+                    form.setValue("city", "")
+                    form.setValue("barangay", "")
+                  }}
+                  onCityChange={(cityCode, cityName) => {
+                    setSelectedCity(cityCode)
+                    form.setValue("city", cityName)
+                    setSelectedBarangay("")
+                    form.setValue("barangay", "")
+                  }}
+                  onBarangayChange={(barangayCode, barangayName) => {
+                    setSelectedBarangay(barangayCode)
+                    form.setValue("barangay", barangayName)
+                  }}
+                  disabled={isLoading}
+                />
+              )}
             </div>
 
             {/* Zip Code */}
@@ -545,27 +627,6 @@ export function EditPropertyForm({ property }: EditPropertyFormProps) {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
-                name="taxDeclaration"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tax Declaration</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Tax declaration number" 
-                        {...field}
-                        disabled={isLoading}
-                    />
-                    </FormControl>
-                    <FormDescription>
-                      Tax declaration number for this property
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="remarks"
                 render={({ field }) => (
                   <FormItem>
@@ -589,31 +650,7 @@ export function EditPropertyForm({ property }: EditPropertyFormProps) {
           </CardContent>
         </Card>
 
-        {/* Submit Buttons */}
-        <div className="flex items-center space-x-4 pt-6 border-t">
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? (
-              <>
-                <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2" />
-                Updating...
-              </>
-            ) : (
-              <>
-                <Save className="h-4 w-4 mr-2" />
-                Update Property
-              </>
-            )}
-          </Button>
-          <Button 
-            type="button" 
-            variant="outline" 
-            onClick={() => router.push(`/properties/${property.id}`)} 
-            disabled={isLoading}
-          >
-            <X className="h-4 w-4 mr-2" />
-            Cancel
-          </Button>
-        </div>
+
       </form>
     </Form>
   )

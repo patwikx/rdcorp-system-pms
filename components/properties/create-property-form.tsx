@@ -520,27 +520,6 @@ export function CreatePropertyForm() {
             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
               <FormField
                 control={form.control}
-                name="taxDeclaration"
-                render={({ field }) => (
-                  <FormItem>
-                    <FormLabel>Tax Declaration</FormLabel>
-                    <FormControl>
-                      <Input 
-                        placeholder="Tax declaration number" 
-                        {...field}
-                        disabled={isLoading}
-                      />
-                    </FormControl>
-                    <FormDescription>
-                      Tax declaration number for this property
-                    </FormDescription>
-                    <FormMessage />
-                  </FormItem>
-                )}
-              />
-
-              <FormField
-                control={form.control}
                 name="remarks"
                 render={({ field }) => (
                   <FormItem>

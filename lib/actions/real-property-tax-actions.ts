@@ -20,7 +20,15 @@ export type ActionResult<T = unknown> = {
   details?: Record<string, unknown>
 }
 
-export async function createRealPropertyTax(data: RealPropertyTaxFormData): Promise<ActionResult<RealPropertyTax>> {
+export type SerializedRealPropertyTax = Omit<RealPropertyTax, 'taxAmount' | 'amountPaid' | 'discount' | 'penalty' | 'interest'> & {
+  taxAmount: number
+  amountPaid: number | null
+  discount: number | null
+  penalty: number | null
+  interest: number | null
+}
+
+export async function createRealPropertyTax(data: RealPropertyTaxFormData): Promise<ActionResult<SerializedRealPropertyTax>> {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -68,15 +76,25 @@ export async function createRealPropertyTax(data: RealPropertyTaxFormData): Prom
       },
     })
 
+    // Convert Decimal fields to numbers for client compatibility
+    const serializedTax = {
+      ...tax,
+      taxAmount: Number(tax.taxAmount),
+      amountPaid: tax.amountPaid ? Number(tax.amountPaid) : null,
+      discount: tax.discount ? Number(tax.discount) : null,
+      penalty: tax.penalty ? Number(tax.penalty) : null,
+      interest: tax.interest ? Number(tax.interest) : null,
+    }
+
     revalidatePath(`/properties/${validatedData.data.propertyId}`)
-    return { success: true, data: tax }
+    return { success: true, data: serializedTax }
   } catch (error) {
     console.error("Error creating real property tax:", error)
     return { error: "Failed to create tax record" }
   }
 }
 
-export async function updateRealPropertyTax(data: RealPropertyTaxUpdateData): Promise<ActionResult<RealPropertyTax>> {
+export async function updateRealPropertyTax(data: RealPropertyTaxUpdateData): Promise<ActionResult<SerializedRealPropertyTax>> {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -107,15 +125,25 @@ export async function updateRealPropertyTax(data: RealPropertyTaxUpdateData): Pr
       data: updateData,
     })
 
+    // Convert Decimal fields to numbers for client compatibility
+    const serializedTax = {
+      ...tax,
+      taxAmount: Number(tax.taxAmount),
+      amountPaid: tax.amountPaid ? Number(tax.amountPaid) : null,
+      discount: tax.discount ? Number(tax.discount) : null,
+      penalty: tax.penalty ? Number(tax.penalty) : null,
+      interest: tax.interest ? Number(tax.interest) : null,
+    }
+
     revalidatePath(`/properties/${existingTax.propertyId}`)
-    return { success: true, data: tax }
+    return { success: true, data: serializedTax }
   } catch (error) {
     console.error("Error updating real property tax:", error)
     return { error: "Failed to update tax record" }
   }
 }
 
-export async function markTaxAsPaid(data: RealPropertyTaxPaymentData): Promise<ActionResult<RealPropertyTax>> {
+export async function markTaxAsPaid(data: RealPropertyTaxPaymentData): Promise<ActionResult<SerializedRealPropertyTax>> {
   try {
     const session = await auth()
     if (!session?.user?.id) {
@@ -160,8 +188,18 @@ export async function markTaxAsPaid(data: RealPropertyTaxPaymentData): Promise<A
       },
     })
 
+    // Convert Decimal fields to numbers for client compatibility
+    const serializedTax = {
+      ...tax,
+      taxAmount: Number(tax.taxAmount),
+      amountPaid: tax.amountPaid ? Number(tax.amountPaid) : null,
+      discount: tax.discount ? Number(tax.discount) : null,
+      penalty: tax.penalty ? Number(tax.penalty) : null,
+      interest: tax.interest ? Number(tax.interest) : null,
+    }
+
     revalidatePath(`/properties/${existingTax.propertyId}`)
-    return { success: true, data: tax }
+    return { success: true, data: serializedTax }
   } catch (error) {
     console.error("Error marking tax as paid:", error)
     return { error: "Failed to process payment" }

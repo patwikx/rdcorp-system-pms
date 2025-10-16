@@ -122,9 +122,126 @@ export function ApprovalDetails({ approval }: ApprovalDetailsProps) {
     }
   }
 
+  const renderTitleMovementDetails = () => {
+    // The title movement data is nested under 'titleMovement' key
+    const proposedChanges = approval.proposedChanges as {
+      titleMovement?: {
+        propertyId: string
+        purposeOfRelease: string
+        releasedBy: string
+        approvedById: string
+        receivedByTransmittal: string
+        receivedByName?: string
+      }
+      action?: string
+    }
+    
+    const movementData = proposedChanges.titleMovement
+    
+    if (!movementData) {
+      return <p className="text-muted-foreground text-sm">No title movement data available</p>
+    }
+
+    return (
+      <div className="space-y-6">
+        {/* Movement Overview */}
+        <div className="border rounded-lg p-4">
+          <div className="flex items-center space-x-2 mb-3">
+            <Activity className="h-5 w-5" />
+            <h4 className="font-semibold">Title Movement Request</h4>
+          </div>
+          <p className="text-sm text-muted-foreground">
+            This request involves the physical movement of the property title document.
+          </p>
+        </div>
+
+        {/* Request Information */}
+        <div className="border rounded-lg p-4 bg-muted/20">
+          <div className="font-medium text-sm text-foreground mb-3 flex items-center">
+            <span className="w-2 h-2 bg-green-500 rounded-full mr-2"></span>
+            Release Request Details
+          </div>
+          
+          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+            {movementData.releasedBy && (
+              <div className="space-y-1">
+                <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                  Requested By
+                </div>
+                <div className="text-base font-semibold">
+                  {movementData.releasedBy}
+                </div>
+              </div>
+            )}
+          </div>
+          
+          {movementData.purposeOfRelease && (
+            <div className="mt-4 space-y-2">
+              <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide flex items-center">
+                <FileText className="h-3 w-3 mr-1" />
+                Purpose of Release
+              </div>
+              <div className="p-4 border rounded-lg bg-muted/30">
+                <div className="text-sm leading-relaxed font-medium">
+                  {movementData.purposeOfRelease}
+                </div>
+              </div>
+            </div>
+          )}
+        </div>
+
+        {/* Transmittal Information */}
+        {(movementData.receivedByTransmittal || movementData.receivedByName) && (
+          <div className="border rounded-lg p-4 bg-muted/20">
+            <div className="font-medium text-sm text-foreground mb-4 flex items-center">
+              <span className="w-2 h-2 bg-blue-500 rounded-full mr-2"></span>
+              Transmittal Information
+            </div>
+            
+            {/* Highlight key transmittal details */}
+            <div className="p-4 border-2 rounded-lg">
+              <div className="flex items-center space-x-2 mb-3">
+                <User className="h-4 w-4" />
+                <span className="text-sm font-semibold">Title Recipient Details</span>
+              </div>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                {movementData.receivedByName && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      To Be Received By
+                    </div>
+                    <div className="text-base font-bold">
+                      {movementData.receivedByName}
+                    </div>
+                  </div>
+                )}
+                
+                {movementData.receivedByTransmittal && (
+                  <div className="space-y-1">
+                    <div className="text-xs font-medium text-muted-foreground uppercase tracking-wide">
+                      Transmittal Number
+                    </div>
+                    <div className="text-base font-bold font-mono bg-muted px-3 py-2 rounded border">
+                      {movementData.receivedByTransmittal}
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+          </div>
+        )}
+      </div>
+    )
+  }
+
   const renderProposedChanges = () => {
     if (!approval.proposedChanges || Object.keys(approval.proposedChanges).length === 0) {
       return <p className="text-muted-foreground text-sm">No specific changes detailed</p>
+    }
+
+    // Check if this is a title movement approval
+    if (approval.workflowType === 'TITLE_TRANSFER') {
+      return renderTitleMovementDetails()
     }
 
     const formatValue = (value: unknown): string => {
@@ -211,9 +328,6 @@ export function ApprovalDetails({ approval }: ApprovalDetailsProps) {
               </div>
             </div>
             <div className="flex items-center space-x-2">
-              <Badge className={priorityColors[approval.priority as keyof typeof priorityColors]}>
-                {approval.priority}
-              </Badge>
               <Badge variant="outline" className={statusColors[approval.status as keyof typeof statusColors]}>
                 {approval.status}
               </Badge>
@@ -229,22 +343,37 @@ export function ApprovalDetails({ approval }: ApprovalDetailsProps) {
           <Card>
             <CardHeader>
               <CardTitle className="flex items-center space-x-2">
-                <FileText className="h-5 w-5" />
-                <span>Proposed Changes</span>
+                {approval.workflowType === 'TITLE_TRANSFER' ? (
+                  <>
+                    <Activity className="h-5 w-5" />
+                    <span>Title Movement Details</span>
+                  </>
+                ) : (
+                  <>
+                    <FileText className="h-5 w-5" />
+                    <span>Proposed Changes</span>
+                  </>
+                )}
               </CardTitle>
             </CardHeader>
             <CardContent className="space-y-4">
-              <div>
-                <Label className="text-sm font-medium text-muted-foreground">Description</Label>
-                <p className="mt-1 p-3 bg-muted/50 rounded-md text-sm">
-                  {approval.description}
-                </p>
-              </div>
+              {approval.workflowType !== 'TITLE_TRANSFER' && (
+                <>
+                  <div>
+                    <Label className="text-sm font-medium text-muted-foreground">Description</Label>
+                    <p className="mt-1 p-3 bg-muted/50 rounded-md text-sm">
+                      {approval.description}
+                    </p>
+                  </div>
 
-              <Separator />
+                  <Separator />
+                </>
+              )}
 
               <div>
-                <Label className="text-sm font-medium text-muted-foreground">Changes to Review</Label>
+                <Label className="text-sm font-medium text-muted-foreground">
+                  {approval.workflowType === 'TITLE_TRANSFER' ? 'Movement Information' : 'Changes to Review'}
+                </Label>
                 <div className="mt-2">
                   {renderProposedChanges()}
                 </div>

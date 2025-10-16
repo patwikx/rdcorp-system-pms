@@ -30,21 +30,21 @@ export function PropertyRealPropertyTax({ property }: PropertyRealPropertyTaxPro
   const handleTaxCreated = () => {
     setIsAddDialogOpen(false)
     // Refresh the page or update the property data
-    window.location.reload()
+    //window.location.reload()
   }
 
   const handleTaxUpdated = () => {
     setIsEditDialogOpen(false)
     setEditingTax(null)
     // Refresh the page or update the property data
-    window.location.reload()
+   // window.location.reload()
   }
 
   const handleTaxMarkedPaid = () => {
     setIsMarkPaidDialogOpen(false)
     setMarkingPaidTax(null)
     // Refresh the page or update the property data
-    window.location.reload()
+    //window.location.reload()
   }
 
   const handleEditTax = (tax: typeof allPropertyTaxes[0]) => {

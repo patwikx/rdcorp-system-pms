@@ -22,6 +22,7 @@ import { getReturnableTitleMovements } from "@/lib/actions/title-movement-action
 import { TitleReturnForm } from "@/components/properties/title-return-form"
 import { format, differenceInDays } from "date-fns"
 import { toast } from "sonner"
+import { cn } from "@/lib/utils"
 
 interface TitleMovementWithDetails {
   id: string
@@ -225,10 +226,10 @@ export function ReturnableTitlesContent() {
             </div>
           </div>
 
-          {/* Returnable Titles List */}
-          <div className="space-y-4">
+          {/* Returnable Titles Grid */}
+          <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 2xl:grid-cols-5">
             {filteredMovements.length === 0 ? (
-              <div className="text-center py-8">
+              <div className="col-span-full text-center py-12">
                 <RotateCcw className="mx-auto h-12 w-12 text-muted-foreground" />
                 <h3 className="mt-4 text-lg font-semibold">No returnable titles found</h3>
                 <p className="mt-2 text-muted-foreground">
@@ -240,93 +241,83 @@ export function ReturnableTitlesContent() {
               </div>
             ) : (
               filteredMovements.map((movement) => (
-                <Card key={movement.id} className="relative">
-                  <CardContent className="p-6">
-                    <div className="flex items-start justify-between">
-                      <div className="flex-1 space-y-4">
-                        {/* Header */}
-                        <div className="flex items-center justify-between">
-                          <div className="flex items-center space-x-3">
-                            {getUrgencyIndicator(movement)}
-                            <div>
-                              <h4 className="font-semibold">{movement.property.titleNumber}</h4>
-                              <p className="text-sm text-muted-foreground">
-                                {movement.property.registeredOwner}
-                              </p>
-                            </div>
-                          </div>
-                          <div className="flex items-center space-x-2">
-                            {getStatusBadge(movement.movementStatus)}
-                            <Badge variant="outline" className={
-                              isOverdue(movement.dateReleased) 
-                                ? "bg-red-50 text-red-700 border-red-200"
-                                : "bg-blue-50 text-blue-700 border-blue-200"
-                            }>
-                              {getDaysOut(movement.dateReleased)} days out
-                            </Badge>
-                          </div>
-                        </div>
-
-                        {/* Details */}
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2 text-sm font-medium text-muted-foreground">
-                              <Calendar className="h-4 w-4" />
-                              <span>Released</span>
-                            </div>
-                            <p className="text-sm font-semibold">
-                              {movement.dateReleased 
-                                ? format(new Date(movement.dateReleased), 'MMM dd, yyyy')
-                                : "—"
-                              }
+                <Card 
+                  key={movement.id} 
+                  className="relative cursor-pointer hover:shadow-md transition-shadow duration-200 group"
+                  onClick={() => handleProcessReturn(movement)}
+                >
+                  <CardContent className="p-4">
+                    <div className="space-y-3">
+                      {/* Header with urgency indicator */}
+                      <div className="flex items-start justify-between">
+                        <div className="flex items-center space-x-2 min-w-0 flex-1">
+                          {getUrgencyIndicator(movement)}
+                          <div className="min-w-0 flex-1">
+                            <h4 className="font-semibold text-sm truncate">{movement.property.titleNumber}</h4>
+                            <p className="text-xs text-muted-foreground truncate">
+                              {movement.property.registeredOwner}
                             </p>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2 text-sm font-medium text-muted-foreground">
-                              <User className="h-4 w-4" />
-                              <span>Released By</span>
-                            </div>
-                            <p className="text-sm font-semibold">{movement.releasedBy || "—"}</p>
-                          </div>
-
-                          <div className="space-y-1">
-                            <div className="flex items-center space-x-2 text-sm font-medium text-muted-foreground">
-                              <Building className="h-4 w-4" />
-                              <span>Current Holder</span>
-                            </div>
-                            <p className="text-sm font-semibold">{movement.receivedByName || "—"}</p>
-                          </div>
-
-                          {movement.receivedByTransmittal && (
-                            <div className="space-y-1 col-span-full">
-                              <div className="text-sm font-medium text-muted-foreground">Transmittal Number</div>
-                              <p className="text-sm font-mono bg-muted/50 p-2 rounded">
-                                {movement.receivedByTransmittal}
-                              </p>
-                            </div>
-                          )}
-                        </div>
-
-                        {/* System Info */}
-                        <div className="flex items-center justify-between text-xs text-muted-foreground pt-2 border-t">
-                          <div>
-                            Initiated by {movement.movedBy.firstName} {movement.movedBy.lastName}
-                          </div>
-                          <div>
-                            {format(new Date(movement.createdAt), 'MMM dd, yyyy HH:mm')}
                           </div>
                         </div>
                       </div>
 
-                      {/* Actions */}
-                      <div className="ml-4">
+                      {/* Status and Days Out */}
+                      <div className="flex flex-wrap gap-2">
+                        <div className="inline-flex">
+                          {getStatusBadge(movement.movementStatus)}
+                        </div>
+                        <Badge variant="outline" className={cn(
+                          "text-xs inline-flex w-fit",
+                          isOverdue(movement.dateReleased) 
+                            ? "bg-red-50 text-red-700 border-red-200"
+                            : "bg-blue-50 text-blue-700 border-blue-200"
+                        )}>
+                          {getDaysOut(movement.dateReleased)} days out
+                        </Badge>
+                      </div>
+
+                      {/* Key Details */}
+                      <div className="space-y-2 text-xs">
+                        <div className="flex items-center justify-between">
+                          <span className="text-muted-foreground">Released:</span>
+                          <span className="font-medium">
+                            {movement.dateReleased 
+                              ? format(new Date(movement.dateReleased), 'MMM dd')
+                              : "—"
+                            }
+                          </span>
+                        </div>
+                        
+                        {movement.receivedByName && (
+                          <div className="flex items-center justify-between">
+                            <span className="text-muted-foreground">Holder:</span>
+                            <span className="font-medium truncate ml-2" title={movement.receivedByName}>
+                              {movement.receivedByName}
+                            </span>
+                          </div>
+                        )}
+
+                        {movement.receivedByTransmittal && (
+                          <div className="pt-1 border-t">
+                            <div className="text-muted-foreground mb-1">Transmittal:</div>
+                            <div className="font-mono text-xs bg-muted/50 p-1 rounded truncate">
+                              {movement.receivedByTransmittal}
+                            </div>
+                          </div>
+                        )}
+                      </div>
+
+                      {/* Process Return Button */}
+                      <div className="pt-2 border-t">
                         <Button 
-                          variant="outline" 
                           size="sm"
-                          onClick={() => handleProcessReturn(movement)}
+                          className="w-full group-hover:bg-primary group-hover:text-primary-foreground transition-colors"
+                          onClick={(e) => {
+                            e.stopPropagation()
+                            handleProcessReturn(movement)
+                          }}
                         >
-                          <RotateCcw className="h-3 w-3 mr-1" />
+                          <RotateCcw className="h-3 w-3 mr-2" />
                           Process Return
                         </Button>
                       </div>

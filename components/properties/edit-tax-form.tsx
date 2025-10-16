@@ -444,7 +444,7 @@ export function EditTaxForm({ tax, onSuccess, onCancel }: EditTaxFormProps) {
               )}
             </Button>
             {onCancel && (
-              <Button variant="outline" onClick={onCancel} disabled={isLoading}>
+              <Button type="button" variant="outline" onClick={onCancel} disabled={isLoading}>
                 <X className="h-4 w-4 mr-2" />
                 Cancel
               </Button>

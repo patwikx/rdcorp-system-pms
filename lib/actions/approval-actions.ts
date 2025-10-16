@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache"
 import { auth } from "@/auth"
 import { prisma } from "@/lib/prisma"
-import { ApprovalStatus, WorkflowType, ChangeType, type Prisma } from "@prisma/client"
+import { ApprovalStatus, WorkflowType, ChangeType, MovementStatus, type Prisma } from "@prisma/client"
 
 export interface ApprovalWorkflowWithDetails {
   id: string
@@ -412,6 +412,8 @@ export
       // Apply changes based on workflow type
       if (workflow.workflowType === WorkflowType.PROPERTY_UPDATE) {
         await applyPropertyUpdate(tx, workflow, session.user.id)
+      } else if (workflow.workflowType === WorkflowType.TITLE_TRANSFER) {
+        await applyTitleMovement(tx, workflow, session.user.id)
       }
       // Add other workflow types here as needed
     })
@@ -420,6 +422,8 @@ export
     revalidatePath('/approvals')
     revalidatePath(`/properties/${workflow.propertyId}`)
     revalidatePath('/properties')
+    revalidatePath('/title-returns')
+    revalidatePath('/title-movements')
 
     return { success: true }
   } catch (error) {
@@ -518,4 +522,108 @@ async function applyPropertyUpdate(
   if (changeHistoryPromises.length > 0) {
     await Promise.all(changeHistoryPromises)
   }
+}
+
+// Helper function to apply title movement when approved
+async function applyTitleMovement(
+  tx: Parameters<Parameters<typeof prisma.$transaction>[0]>[0], // Prisma transaction client
+  workflow: { id: string; propertyId: string; proposedChanges: Prisma.JsonValue; initiatedById: string },
+  approvedById: string
+) {
+  if (!workflow.proposedChanges || typeof workflow.proposedChanges !== 'object' || Array.isArray(workflow.proposedChanges)) {
+    throw new Error('No valid proposed changes found in workflow')
+  }
+
+  const proposedChanges = workflow.proposedChanges as { 
+    titleMovement?: {
+      propertyId: string
+      purposeOfRelease: string
+      releasedBy: string
+      approvedById: string
+      receivedByTransmittal: string
+      receivedByName?: string
+    }
+    action?: string
+  }
+
+  const titleMovementData = proposedChanges.titleMovement
+  if (!titleMovementData) {
+    throw new Error('No title movement data found in proposed changes')
+  }
+
+  // Get the current property to track custody changes
+  const currentProperty = await tx.property.findUnique({
+    where: { id: workflow.propertyId },
+    select: { custodyOfTitle: true }
+  })
+
+  if (!currentProperty) {
+    throw new Error('Property not found')
+  }
+
+  // Resolve the approver's name from user ID
+  let approverName = ""
+  if (titleMovementData.approvedById) {
+    const approver = await tx.user.findUnique({
+      where: { id: titleMovementData.approvedById },
+      select: { firstName: true, lastName: true }
+    })
+    if (approver) {
+      approverName = `${approver.firstName} ${approver.lastName}`.trim()
+    }
+  }
+
+  // Determine new custody based on receiving person/bank
+  const newCustody = titleMovementData.receivedByName || "In Transit"
+
+  // Create the title movement record
+  const titleMovement = await tx.titleMovement.create({
+    data: {
+      propertyId: titleMovementData.propertyId,
+      purposeOfRelease: titleMovementData.purposeOfRelease,
+      releasedBy: titleMovementData.releasedBy,
+      approvedBy: approverName,
+      receivedByTransmittal: titleMovementData.receivedByTransmittal,
+      receivedByName: titleMovementData.receivedByName,
+      dateReleased: new Date(),
+      movementStatus: MovementStatus.RELEASED,
+      movedById: workflow.initiatedById,
+    },
+  })
+
+  // Update property custody
+  await tx.property.update({
+    where: { id: workflow.propertyId },
+    data: {
+      custodyOfTitle: newCustody,
+      updatedAt: new Date(),
+      updatedById: approvedById,
+    },
+  })
+
+  // Create change history for title movement
+  await tx.changeHistory.create({
+    data: {
+      propertyId: workflow.propertyId,
+      fieldName: "titleMovement",
+      oldValue: null,
+      newValue: JSON.stringify(titleMovement),
+      changeType: ChangeType.CREATE,
+      changedById: approvedById,
+      reason: "Title movement approved and created",
+    },
+  })
+
+  // Create change history for custody update
+  await tx.changeHistory.create({
+    data: {
+      propertyId: workflow.propertyId,
+      fieldName: "custodyOfTitle",
+      oldValue: currentProperty.custodyOfTitle,
+      newValue: newCustody,
+      changeType: ChangeType.UPDATE,
+      changedById: approvedById,
+      reason: `Custody updated due to approved title movement to ${newCustody}`,
+    },
+  })
 }
